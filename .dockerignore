@@ -1,0 +1,13 @@
+**
+!requirements-chris.txt
+!services/
+!services/assets/
+!services/assets/**
+!services/threats/
+!services/threats/**
+!services/reports/
+!services/reports/**
+!services/chris_support/
+!services/chris_support/**
+**/__pycache__/
+**/*.pyc

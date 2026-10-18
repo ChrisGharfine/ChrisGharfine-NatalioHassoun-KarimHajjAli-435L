@@ -1,0 +1,12 @@
+# Chris's local development and test artifacts
+/.venv-chris/
+/.chris-runtime/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.env
+.env.*
+*.pem
+*.key
