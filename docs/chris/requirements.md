@@ -3,9 +3,10 @@
 This is a focused implementation checklist for Chris Gharfine's Asset Management,
 Threat Intelligence, and Security Reports services. It summarizes the attached
 professor-provided Sprint I specification; it is not a copy of the assignment.
-The attachment remains the requirements authority. Implementation is pending
-approval of the architecture and integration contracts described in
-[implementation-plan.md](implementation-plan.md).
+The attachment remains the requirements authority. The user approved the baseline
+in [implementation-plan.md](implementation-plan.md), and Chris's services have
+been implemented. External team contracts remain pending as recorded in
+[integration-contracts.md](integration-contracts.md).
 
 ## Repository and ownership
 
