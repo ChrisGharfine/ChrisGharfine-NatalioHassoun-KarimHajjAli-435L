@@ -1,17 +1,24 @@
 """Generate the Postman collections for services 3, 7 and 8.
 
-Rather than typing the saved examples by hand, this script resets the
-database, fires every request at the running Flask app and stores whatever
-comes back as the example for that request. The examples in the collections
-are therefore real responses from a real run, which is exactly what the
-sprint asks for as evidence.
+Rewritten for team-integration-v1.0.0. Differences from the Sprint I
+version:
 
-Start the server first, then run this::
+* Three separate base URLs, one per service, on ports 8003, 8007 and 8008.
+* No login request. Users is Natalio's service and issues the token; the
+  collection reads it from an environment variable you paste in.
+* A collection for the internal delivery endpoint, authenticated by
+  service name and key rather than a user token.
+* The environment file ships **empty** token and key values. Section 9
+  forbids committing credentials.
 
-    python app.py          (in one terminal)
-    python build_postman.py (in another)
+Saved examples are captured by firing each request at running services.
+If a service is not reachable the example records that fact rather than a
+fabricated response -- an unreachable dependency is pending integration,
+not something to invent.
 
-It writes one collection per service plus a shared environment file.
+Start the three services, then run::
+
+    python build_postman.py
 
 :author: Karim Hajj Ali
 """
@@ -19,95 +26,119 @@ It writes one collection per service plus a shared environment file.
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 
-BASE_URL = "http://127.0.0.1:5000"
+import config
 
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "postman")
 
-#: Tokens collected during the run, keyed by role.
-TOKENS = {}
+#: Which variable holds each service's base URL.
+BASE_VARIABLE = {
+    config.SERVICE_INCIDENTS: "incidents_url",
+    config.SERVICE_VULNERABILITIES: "vulnerabilities_url",
+    config.SERVICE_NOTIFICATIONS: "notifications_url",
+}
+
+BASE_URL = {
+    config.SERVICE_INCIDENTS: "http://127.0.0.1:8003",
+    config.SERVICE_VULNERABILITIES: "http://127.0.0.1:8007",
+    config.SERVICE_NOTIFICATIONS: "http://127.0.0.1:8008",
+}
+
+#: A real token, supplied locally, used only to capture examples. Never
+#: written into the collection or the environment file.
+ADMIN_TOKEN = os.environ.get("POSTMAN_CAPTURE_ADMIN_TOKEN", "")
+ANALYST_TOKEN = os.environ.get("POSTMAN_CAPTURE_ANALYST_TOKEN", "")
 
 
-# ---------------------------------------------------------------------------
-# Talking to the server
-# ---------------------------------------------------------------------------
+def call(service, method, path, body=None, token=None, service_headers=None):
+    """Send a request to a running service and return the outcome.
 
-def call(method, path, body=None, token=None):
-    """Send one HTTP request to the running app and return the result.
-
-    :param method: HTTP method.
-    :type method: str
-    :param path: Path beginning with ``/``.
-    :type path: str
-    :param body: JSON body to send, defaults to None.
-    :type body: dict, optional
-    :param token: Bearer token to send, defaults to None.
-    :type token: str, optional
-    :return: ``(status code, reason, response body as text)``.
-    :rtype: tuple
-    """
-    data = json.dumps(body).encode("utf-8") if body is not None else None
-    request = urllib.request.Request(BASE_URL + path, data=data,
-                                     method=method)
-    if data is not None:
-        request.add_header("Content-Type", "application/json")
-    if token:
-        request.add_header("Authorization", "Bearer %s" % token)
-
-    try:
-        with urllib.request.urlopen(request) as response:
-            return (response.status, response.reason,
-                    response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        return error.code, error.reason, error.read().decode("utf-8")
-
-
-# ---------------------------------------------------------------------------
-# Building collection pieces
-# ---------------------------------------------------------------------------
-
-def build_url(path):
-    """Turn a path into the URL object Postman expects.
-
-    :param path: Path beginning with ``/``, possibly with a query string.
-    :type path: str
-    :return: The URL object.
-    :rtype: dict
-    """
-    path_part, _, query_part = path.partition("?")
-    url = {
-        "raw": "{{base_url}}" + path,
-        "host": ["{{base_url}}"],
-        "path": [segment for segment in path_part.split("/") if segment],
-    }
-    if query_part:
-        url["query"] = []
-        for pair in query_part.split("&"):
-            key, _, value = pair.partition("=")
-            url["query"].append({
-                "key": key,
-                "value": urllib.request.unquote(value),
-            })
-    return url
-
-
-def build_request(method, path, body=None, token_variable=None,
-                  description=""):
-    """Build the request half of a Postman item.
-
+    :param service: Which service to call.
+    :type service: str
     :param method: HTTP method.
     :type method: str
     :param path: Path beginning with ``/``.
     :type path: str
     :param body: JSON body, defaults to None.
     :type body: dict, optional
-    :param token_variable: Name of the Postman variable holding the token,
-        defaults to None for unauthenticated requests.
+    :param token: Bearer token, defaults to None.
+    :type token: str, optional
+    :param service_headers: Service name/key headers, defaults to None.
+    :type service_headers: dict, optional
+    :return: ``(status, reason, text)``; status is ``None`` when the
+        service could not be reached.
+    :rtype: tuple
+    """
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    request = urllib.request.Request(BASE_URL[service] + path, data=data,
+                                     method=method)
+    if data is not None:
+        request.add_header("Content-Type", "application/json")
+    if token:
+        request.add_header("Authorization", "Bearer %s" % token)
+    for key, value in (service_headers or {}).items():
+        request.add_header(key, value)
+
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return (response.status, response.reason,
+                    response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        return error.code, error.reason, error.read().decode("utf-8")
+    except Exception as failure:
+        return None, "unreachable", str(failure)
+
+
+def build_url(service, path):
+    """Turn a path into Postman's URL object.
+
+    :param service: Which service the path belongs to.
+    :type service: str
+    :param path: Path beginning with ``/``, possibly with a query string.
+    :type path: str
+    :return: The URL object.
+    :rtype: dict
+    """
+    variable = "{{%s}}" % BASE_VARIABLE[service]
+    path_part, _, query_part = path.partition("?")
+    url = {
+        "raw": variable + path,
+        "host": [variable],
+        "path": [segment for segment in path_part.split("/") if segment],
+    }
+    if query_part:
+        url["query"] = [
+            {"key": pair.partition("=")[0],
+             "value": urllib.parse.unquote(pair.partition("=")[2])}
+            for pair in query_part.split("&")]
+    return url
+
+
+def build_request(service, method, path, body=None, token_variable=None,
+                  service_name=None, description="", idempotency=False):
+    """Build the request half of a Postman item.
+
+    :param service: Which service it targets.
+    :type service: str
+    :param method: HTTP method.
+    :type method: str
+    :param path: Path beginning with ``/``.
+    :type path: str
+    :param body: JSON body, defaults to None.
+    :type body: dict, optional
+    :param token_variable: Environment variable holding a user token,
+        defaults to None.
     :type token_variable: str, optional
-    :param description: What the request does, shown in Postman.
+    :param service_name: Service identity to present instead of a user
+        token, defaults to None.
+    :type service_name: str, optional
+    :param description: Shown in Postman.
     :type description: str
+    :param idempotency: Add an ``Idempotency-Key`` header, defaults to False.
+    :type idempotency: bool, optional
     :return: The request object.
     :rtype: dict
     """
@@ -117,639 +148,381 @@ def build_request(method, path, body=None, token_variable=None,
     if token_variable:
         headers.append({"key": "Authorization",
                         "value": "Bearer {{%s}}" % token_variable})
+    if service_name:
+        headers.append({"key": "X-Service-Name", "value": service_name})
+        headers.append({"key": "X-Service-Key",
+                        "value": "{{%s_service_key}}" % service_name})
+    if idempotency:
+        headers.append({"key": "Idempotency-Key", "value": "{{$guid}}"})
 
-    request = {
-        "method": method,
-        "header": headers,
-        "url": build_url(path),
-        "description": description,
-    }
+    request = {"method": method, "header": headers,
+               "url": build_url(service, path), "description": description}
     if body is not None:
-        request["body"] = {
-            "mode": "raw",
-            "raw": json.dumps(body, indent=2),
-            "options": {"raw": {"language": "json"}},
-        }
+        request["body"] = {"mode": "raw",
+                           "raw": json.dumps(body, indent=2),
+                           "options": {"raw": {"language": "json"}}}
     return request
 
 
-def build_example(name, request, status_code, reason, body_text):
-    """Build one saved example from a real response.
+def build_example(name, request, status, reason, text):
+    """Build one saved example from a captured response.
 
-    :param name: Example name, e.g. ``"201 Created"``.
+    :param name: Example name.
     :type name: str
-    :param request: The request object the example belongs to.
+    :param request: The request it belongs to.
     :type request: dict
-    :param status_code: HTTP status code that came back.
-    :type status_code: int
-    :param reason: HTTP reason phrase.
+    :param status: HTTP status, or ``None`` when unreachable.
+    :type status: int or NoneType
+    :param reason: Reason phrase.
     :type reason: str
-    :param body_text: Raw response body.
-    :type body_text: str
+    :param text: Raw response body.
+    :type text: str
     :return: The saved example.
     :rtype: dict
     """
-    try:
-        pretty = json.dumps(json.loads(body_text), indent=2)
-    except ValueError:
-        pretty = body_text
+    if status is None:
+        pretty = json.dumps({
+            "_note": "The service was not running when this collection was "
+                     "generated, so no response was captured. Start the "
+                     "service and regenerate to record a real example.",
+        }, indent=2)
+        label = "not captured"
+        code = 0
+    else:
+        try:
+            pretty = json.dumps(json.loads(text), indent=2)
+        except ValueError:
+            pretty = text
+        label = name
+        code = status
 
-    return {
-        "name": name,
-        "originalRequest": request,
-        "status": reason,
-        "code": status_code,
-        "_postman_previewlanguage": "json",
-        "header": [{"key": "Content-Type", "value": "application/json"}],
-        "cookie": [],
-        "body": pretty,
-    }
+    return {"name": label, "originalRequest": request,
+            "status": reason, "code": code,
+            "_postman_previewlanguage": "json",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "cookie": [], "body": pretty}
 
 
-def make_item(name, method, path, description, token_role=None, body=None,
-              extra_cases=()):
-    """Build a complete Postman item, executing it to capture examples.
+def make_item(name, service, method, path, description, token_variable=None,
+              service_name=None, body=None, idempotency=False,
+              capture_token=None, capture_service_headers=None):
+    """Build a Postman item, capturing a real response as its example.
 
-    :param name: Request name as it appears in Postman.
+    :param name: Request name.
     :type name: str
+    :param service: Target service.
+    :type service: str
     :param method: HTTP method.
     :type method: str
     :param path: Path beginning with ``/``.
     :type path: str
-    :param description: What the request does and who may call it.
+    :param description: What it does and who may call it.
     :type description: str
-    :param token_role: Which seeded role to authenticate as, defaults to None.
-    :type token_role: str, optional
-    :param body: JSON body for the primary request, defaults to None.
+    :param token_variable: Variable holding the user token, defaults to None.
+    :type token_variable: str, optional
+    :param service_name: Service identity, defaults to None.
+    :type service_name: str, optional
+    :param body: JSON body, defaults to None.
     :type body: dict, optional
-    :param extra_cases: Further ``(example name, method, path, role, body)``
-        tuples to run and attach as additional examples, such as the error
-        cases, defaults to ``()``.
-    :type extra_cases: tuple, optional
+    :param idempotency: Add an idempotency header, defaults to False.
+    :type idempotency: bool, optional
+    :param capture_token: Real token used only while capturing.
+    :type capture_token: str, optional
+    :param capture_service_headers: Real service headers used only while
+        capturing.
+    :type capture_service_headers: dict, optional
     :return: The finished item.
     :rtype: dict
     """
-    token_variable = ("%s_token" % token_role) if token_role else None
-    request = build_request(method, path, body, token_variable, description)
+    request = build_request(service, method, path, body, token_variable,
+                            service_name, description, idempotency)
 
-    status, reason, text = call(method, path, body,
-                                TOKENS.get(token_role) if token_role else None)
-    examples = [build_example("%d %s" % (status, reason), request,
-                              status, reason, text)]
+    headers = dict(capture_service_headers or {})
+    if idempotency:
+        headers["Idempotency-Key"] = str(uuid.uuid4())
 
-    for case_name, case_method, case_path, case_role, case_body in extra_cases:
-        case_token_variable = ("%s_token" % case_role) if case_role else None
-        case_request = build_request(case_method, case_path, case_body,
-                                     case_token_variable, description)
-        case_status, case_reason, case_text = call(
-            case_method, case_path, case_body,
-            TOKENS.get(case_role) if case_role else None)
-        examples.append(build_example(case_name, case_request, case_status,
-                                      case_reason, case_text))
-
-    return {"name": name, "request": request, "response": examples}
-
-
-def login_folder():
-    """Build the login folder that every collection starts with.
-
-    Each login carries a small test script that writes the returned token
-    into the environment, so the rest of the collection can be run without
-    copying tokens by hand.
-
-    :return: The folder.
-    :rtype: dict
-    """
-    accounts = [
-        ("Login as Security Administrator", "karim.admin", "Admin#2026",
-         "admin"),
-        ("Login as Security Analyst", "rana.analyst", "Analyst#2026",
-         "analyst"),
-        ("Login as Regular Employee", "lina.employee", "Employee#2026",
-         "employee"),
-        ("Login as Auditor", "samir.auditor", "Auditor#2026", "auditor"),
-    ]
-
-    items = []
-    for name, username, password, role in accounts:
-        body = {"username": username, "password": password}
-        request = build_request(
-            "POST", "/auth/login", body, None,
-            "Authenticates and stores the token in the '%s_token' "
-            "environment variable. Run this before the other requests."
-            % role)
-
-        status, reason, text = call("POST", "/auth/login", body)
-        examples = [build_example("%d %s" % (status, reason), request,
-                                  status, reason, text)]
-
-        if role == "admin":
-            bad_body = {"username": username, "password": "wrong-password"}
-            bad_request = build_request("POST", "/auth/login", bad_body, None,
-                                        "Authentication failure case.")
-            bad_status, bad_reason, bad_text = call("POST", "/auth/login",
-                                                    bad_body)
-            examples.append(build_example(
-                "%d %s (wrong password)" % (bad_status, bad_reason),
-                bad_request, bad_status, bad_reason, bad_text))
-
-        items.append({
-            "name": name,
-            "event": [{
-                "listen": "test",
-                "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                        "if (pm.response.code === 200) {",
-                        "    pm.environment.set(\"%s_token\", "
-                        "pm.response.json().token);" % role,
-                        "}",
-                    ],
-                },
-            }],
-            "request": request,
-            "response": examples,
-        })
-
-    return {
-        "name": "0. Authentication (run first)",
-        "description": "Logs in as each role and saves the tokens. "
-                       "Authentication belongs to Service 1 and is included "
-                       "here only so this collection can be run on its own.",
-        "item": items,
-    }
+    status, reason, text = call(service, method, path, body, capture_token,
+                                headers)
+    example = build_example("%s %s" % (status, reason) if status else "",
+                            request, status, reason, text)
+    return {"name": name, "request": request, "response": [example]}
 
 
 def write_collection(filename, name, description, items):
-    """Write one collection file to the ``postman`` folder.
+    """Write one collection file.
 
-    :param filename: File name to write.
+    :param filename: File name inside ``postman/``.
     :type filename: str
-    :param name: Collection name as shown in Postman.
+    :param name: Collection name.
     :type name: str
     :param description: Collection description.
     :type description: str
-    :param items: The folders and requests it contains.
+    :param items: Folders and requests.
     :type items: list
     :return: ``None``
     :rtype: NoneType
     """
     collection = {
-        "info": {
-            "_postman_id": str(uuid.uuid4()),
-            "name": name,
-            "description": description,
-            "schema": "https://schema.getpostman.com/json/collection/"
-                      "v2.1.0/collection.json",
-        },
+        "info": {"_postman_id": str(uuid.uuid4()), "name": name,
+                 "description": description + CAPTURE_NOTE,
+                 "schema": "https://schema.getpostman.com/json/collection/"
+                           "v2.1.0/collection.json"},
         "item": items,
-        "variable": [{"key": "base_url", "value": BASE_URL, "type": "string"}],
     }
+    with open(os.path.join(OUT_DIR, filename), "w", encoding="utf-8") as out:
+        json.dump(collection, out, indent=2)
 
-    path = os.path.join(OUT_DIR, filename)
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(collection, handle, indent=2)
-
-    examples = sum(len(entry.get("response", []))
-                   for folder in items
-                   for entry in folder.get("item", [folder]))
-    print("  %-52s %2d requests, %2d saved examples"
-          % (filename,
-             sum(len(folder.get("item", [folder])) for folder in items),
-             examples))
+    captured = sum(1 for entry in items
+                   for example in entry.get("response", [])
+                   if example["code"])
+    print("  %-56s %2d requests, %2d captured"
+          % (filename, len(items), captured))
 
 
 def write_environment():
-    """Write the shared Postman environment file.
-
-    Holds ``base_url`` plus a slot for each role's token, which the login
-    requests fill in automatically.
+    """Write the environment file, with every secret left blank.
 
     :return: ``None``
     :rtype: NoneType
     """
-    values = [{"key": "base_url", "value": BASE_URL, "enabled": True,
-               "type": "default"}]
-    for role in ("admin", "analyst", "employee", "auditor"):
-        values.append({"key": "%s_token" % role, "value": "",
-                       "enabled": True, "type": "default"})
+    values = [
+        {"key": "incidents_url", "value": BASE_URL[config.SERVICE_INCIDENTS],
+         "enabled": True, "type": "default"},
+        {"key": "vulnerabilities_url",
+         "value": BASE_URL[config.SERVICE_VULNERABILITIES],
+         "enabled": True, "type": "default"},
+        {"key": "notifications_url",
+         "value": BASE_URL[config.SERVICE_NOTIFICATIONS],
+         "enabled": True, "type": "default"},
+        {"key": "users_url", "value": config.USERS_BASE_URL,
+         "enabled": True, "type": "default"},
+    ]
+    # Blank on purpose. Section 9: no credentials in committed environments.
+    for key in ("admin_token", "analyst_token", "employee_token",
+                "auditor_token", "incidents_service_key",
+                "vulnerabilities_service_key"):
+        values.append({"key": key, "value": "", "enabled": True,
+                       "type": "secret"})
 
-    environment = {
-        "id": str(uuid.uuid4()),
-        "name": "SIRMS Local",
-        "values": values,
-        "_postman_variable_scope": "environment",
-    }
-
-    path = os.path.join(OUT_DIR, "SIRMS Local.postman_environment.json")
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(environment, handle, indent=2)
-    print("  %-52s base_url + 4 token slots"
-          % "SIRMS Local.postman_environment.json")
+    environment = {"id": str(uuid.uuid4()), "name": "SIRMS v1 Local",
+                   "values": values,
+                   "_postman_variable_scope": "environment"}
+    path = os.path.join(OUT_DIR, "SIRMS v1 Local.postman_environment.json")
+    with open(path, "w", encoding="utf-8") as out:
+        json.dump(environment, out, indent=2)
+    print("  %-56s secrets left blank" % os.path.basename(path))
 
 
-# ---------------------------------------------------------------------------
-# The three collections
-# ---------------------------------------------------------------------------
+#: Stamped into every collection description so nobody mistakes an example
+#: captured against a test double for evidence of live integration.
+CAPTURE_NOTE = os.environ.get("POSTMAN_CAPTURE_NOTE", "") or """
+How the saved examples were captured
+------------------------------------
+Not stated. Regenerate with POSTMAN_CAPTURE_NOTE set to record whether the
+upstream Users, Assets and Logs services were the real ones or test
+doubles. Examples captured against doubles are not evidence of live team
+integration.
+"""
 
-def build_incidents():
-    """Build the Service 3 collection.
+HOW_TO_AUTHENTICATE = """
+Authentication under team-integration-v1.0.0
+--------------------------------------------
+There is no login request in these collections. Natalio's Users service is
+the only token issuer:
 
-    :return: The collection items.
+    POST {{users_url}}/users/login
+    {"identifier": "your.username", "password": "..."}
+
+Take `data.access_token` from his response and paste it into the
+`admin_token` / `analyst_token` environment variable. Tokens last 1800
+seconds. Never commit a filled-in environment.
+
+The internal collection uses service credentials instead, not a user
+token: `X-Service-Name` plus `X-Service-Key`, with a fresh
+`Idempotency-Key` per delivery (Postman's {{$guid}} generates one).
+"""
+
+
+def incidents_items():
+    """Build the Service 3 requests.
+
+    :return: Items.
     :rtype: list
     """
-    items = [
-        make_item(
-            "1. Create Incident", "POST", "/incidents",
-            "Reports a new cybersecurity incident. Allowed for the Security "
-            "Administrator and the Regular Employee. A new incident always "
-            "starts at status 'Open'.",
-            token_role="admin",
-            body={
-                "title": "Ransomware detected on domain controller",
-                "description": "Endpoint protection flagged file encryption "
-                               "activity on the primary domain controller.",
-                "category": "Malware Infection",
-                "severity": "Critical",
-                "affected_asset": 1,
-            },
-            extra_cases=[
-                ("201 Created (reported by an employee)", "POST",
-                 "/incidents", "employee",
-                 {"title": "Suspicious email requesting credentials",
-                  "description": "Received an email impersonating the IT "
-                                 "helpdesk and asking for my password.",
-                  "category": "Phishing Attack",
-                  "severity": "Medium",
-                  "affected_asset": 3}),
-                ("400 Bad Request (invalid severity)", "POST", "/incidents",
-                 "admin",
-                 {"title": "Test incident", "description": "Test",
-                  "category": "Unauthorized Access",
-                  "severity": "Catastrophic"}),
-                ("400 Bad Request (missing title)", "POST", "/incidents",
-                 "admin",
-                 {"description": "No title supplied",
-                  "category": "Data Leakage", "severity": "Low"}),
-                ("403 Forbidden (analyst may not create)", "POST",
-                 "/incidents", "analyst",
-                 {"title": "Test", "description": "Test",
-                  "category": "Test", "severity": "Low"}),
-            ]),
-
-        make_item(
-            "2. Retrieve All Incidents", "GET", "/incidents",
-            "Returns every incident with its status and assigned analyst. "
-            "Allowed for the Security Administrator and the Auditor.",
-            token_role="admin",
-            extra_cases=[
-                ("200 OK (auditor)", "GET", "/incidents", "auditor", None),
-                ("403 Forbidden (employee)", "GET", "/incidents",
-                 "employee", None),
-                ("401 Unauthorized (no token)", "GET", "/incidents",
-                 None, None),
-            ]),
-
-        make_item(
-            "3. Retrieve Specific Incident", "GET", "/incidents/1",
-            "Returns one incident together with all of its investigation "
-            "notes. A Regular Employee may only read incidents they "
-            "reported themselves.",
-            token_role="admin",
-            extra_cases=[
-                ("404 Not Found (unknown id)", "GET", "/incidents/9999",
-                 "admin", None),
-                ("200 OK (employee reading their own report)", "GET",
-                 "/incidents/2", "employee", None),
-                ("403 Forbidden (employee reading another report)", "GET",
-                 "/incidents/1", "employee", None),
-            ]),
-
-        make_item(
-            "4. Assign Incident to Analyst", "PUT", "/incidents/1/assign",
-            "Assigns an incident to a Security Analyst. Verifies the "
-            "incident exists and that the target user really holds the "
-            "Security Analyst role, writes the assignment to the audit log, "
-            "and raises an 'Incident Assignment' notification in Service 8.",
-            token_role="admin", body={"analyst_id": 2},
-            extra_cases=[
-                ("400 Bad Request (target is not an analyst)", "PUT",
-                 "/incidents/1/assign", "admin", {"analyst_id": 4}),
-                ("404 Not Found (unknown user)", "PUT",
-                 "/incidents/1/assign", "admin", {"analyst_id": 9999}),
-                ("403 Forbidden (analyst may not assign)", "PUT",
-                 "/incidents/1/assign", "analyst", {"analyst_id": 3}),
-            ]),
-
-        make_item(
-            "5a. Update Status - rejected shortcut", "PUT",
-            "/incidents/1/status",
-            "Demonstrates the lifecycle rule. An incident at 'Open' cannot "
-            "jump straight to 'Closed'; the response names the only status "
-            "that would have been accepted.",
-            token_role="analyst", body={"status": "Closed"}),
-
-        make_item(
-            "5b. Update Status - Open to Under Investigation", "PUT",
-            "/incidents/1/status",
-            "First legal step of the lifecycle "
-            "Open -> Under Investigation -> Mitigated -> Resolved -> Closed.",
-            token_role="analyst", body={"status": "Under Investigation"},
-            extra_cases=[
-                ("200 OK (-> Mitigated)", "PUT", "/incidents/1/status",
-                 "analyst", {"status": "Mitigated"}),
-                ("200 OK (-> Resolved, stamps resolution date)", "PUT",
-                 "/incidents/1/status", "analyst", {"status": "Resolved"}),
-                ("200 OK (-> Closed)", "PUT", "/incidents/1/status",
-                 "analyst", {"status": "Closed"}),
-                ("400 Bad Request (closed incident, no further changes)",
-                 "PUT", "/incidents/1/status", "analyst",
-                 {"status": "Open"}),
-            ]),
-
-        make_item(
-            "6. Add Investigation Note", "POST", "/incidents/1/notes",
-            "Adds an investigation note to an incident. The note records "
-            "which analyst wrote it and when, and is returned as part of "
-            "GET /incidents/{id}.",
-            token_role="analyst",
-            body={"note_content": "Isolated the host from the network and "
-                                  "captured a memory image for analysis."},
-            extra_cases=[
-                ("201 Created (second note)", "POST", "/incidents/1/notes",
-                 "analyst",
-                 {"note_content": "Confirmed the encryption routine matches "
-                                  "a known ransomware family."}),
-                ("400 Bad Request (empty note)", "POST",
-                 "/incidents/1/notes", "analyst", {"note_content": "   "}),
-                ("404 Not Found (unknown incident)", "POST",
-                 "/incidents/9999/notes", "analyst",
-                 {"note_content": "orphan note"}),
-            ]),
+    s = config.SERVICE_INCIDENTS
+    return [
+        make_item("1. Create Incident", s, "POST", "/incidents",
+                  "Report an incident. Administrator or Regular Employee. "
+                  "An employee is always recorded as their own reporter.",
+                  token_variable="admin_token", capture_token=ADMIN_TOKEN,
+                  body={"title": "Ransomware detected on domain controller",
+                        "description": "Encryption activity flagged on the "
+                                       "domain controller.",
+                        "category": "Malware Infection",
+                        "severity": "Critical", "affected_asset": 1}),
+        make_item("2. Retrieve All Incidents", s, "GET", "/incidents",
+                  "Complete list. Administrator or Auditor. This is the "
+                  "shape Chris's Reports consumes: body.incidents with a "
+                  "success status and count.",
+                  token_variable="admin_token", capture_token=ADMIN_TOKEN),
+        make_item("3. Retrieve Specific Incident", s, "GET", "/incidents/1",
+                  "One incident with its investigation notes. An employee "
+                  "may only read an incident they reported.",
+                  token_variable="admin_token", capture_token=ADMIN_TOKEN),
+        make_item("4. Assign Incident to Analyst", s, "PUT",
+                  "/incidents/1/assign",
+                  "Administrator only. The target's role is checked against "
+                  "Users over HTTP, so a demoted account is refused. Queues "
+                  "an Incident Assignment notification.",
+                  token_variable="admin_token", capture_token=ADMIN_TOKEN,
+                  body={"analyst_id": 2}),
+        make_item("5. Update Incident Status", s, "PUT",
+                  "/incidents/1/status",
+                  "One step along Open -> Under Investigation -> Mitigated "
+                  "-> Resolved -> Closed. Skipping a step is refused with "
+                  "400 naming the only allowed next status.",
+                  token_variable="analyst_token",
+                  capture_token=ANALYST_TOKEN,
+                  body={"status": "Under Investigation"}),
+        make_item("6. Add Investigation Note", s, "POST",
+                  "/incidents/1/notes",
+                  "Administrator or Analyst. Returned as part of "
+                  "GET /incidents/{id}.",
+                  token_variable="analyst_token",
+                  capture_token=ANALYST_TOKEN,
+                  body={"note_content": "Isolated the host and captured a "
+                                        "memory image."}),
+        make_item("Health", s, "GET", "/health",
+                  "Readiness of this service, including whether its own "
+                  "tables can be queried."),
     ]
-    return [login_folder(), {"name": "Service 3 - Incident Management",
-                             "item": items}]
 
 
-def build_vulnerabilities():
-    """Build the Service 7 collection.
+def vulnerabilities_items():
+    """Build the Service 7 requests.
 
-    :return: The collection items.
+    :return: Items.
     :rtype: list
     """
-    items = [
-        make_item(
-            "1. Add New Vulnerability", "POST", "/vulnerabilities",
-            "Registers a vulnerability against an asset. Administrators "
-            "only. A High or Critical finding also raises a 'Vulnerability "
-            "Alert' notification for the owner of the affected asset.",
-            token_role="admin",
-            body={
-                "title": "Remote code execution in XZ Utils",
-                "description": "A backdoor in the upstream package allows "
-                               "unauthenticated remote code execution.",
-                "severity": "Critical",
-                "affected_asset": 2,
-                "cve_identifier": "CVE-2024-3094",
-                "cvss_score": 10.0,
-                "discovery_source": "Vendor advisory",
-            },
-            extra_cases=[
-                ("201 Created (High)", "POST", "/vulnerabilities", "admin",
-                 {"title": "Unpatched SMB signing on file server",
-                  "description": "SMB signing is not enforced, allowing "
-                                 "relay attacks.",
-                  "severity": "High", "affected_asset": 2,
-                  "cve_identifier": "CVE-2024-21345", "cvss_score": 8.1,
-                  "discovery_source": "Penetration test"}),
-                ("201 Created (Medium)", "POST", "/vulnerabilities", "admin",
-                 {"title": "Outdated TLS configuration",
-                  "description": "The payroll application still negotiates "
-                                 "TLS 1.0.",
-                  "severity": "Medium", "affected_asset": 6,
-                  "cve_identifier": "CVE-2023-11111", "cvss_score": 5.3,
-                  "discovery_source": "Internal scan"}),
-                ("400 Bad Request (malformed CVE)", "POST",
-                 "/vulnerabilities", "admin",
-                 {"title": "Test", "description": "Test", "severity": "Low",
-                  "affected_asset": 1, "cve_identifier": "CVE-BAD"}),
-                ("400 Bad Request (CVSS out of range)", "POST",
-                 "/vulnerabilities", "admin",
-                 {"title": "Test", "description": "Test", "severity": "Low",
-                  "affected_asset": 1, "cvss_score": 44}),
-                ("404 Not Found (unknown asset)", "POST",
-                 "/vulnerabilities", "admin",
-                 {"title": "Test", "description": "Test", "severity": "Low",
-                  "affected_asset": 9999}),
-            ]),
-
-        make_item(
-            "2. Retrieve All Vulnerabilities", "GET", "/vulnerabilities",
-            "Returns every vulnerability with its severity, affected asset "
-            "and current status. Administrator, Analyst and Auditor.",
-            token_role="analyst",
-            extra_cases=[
-                ("403 Forbidden (employee has no access)", "GET",
-                 "/vulnerabilities", "employee", None),
-            ]),
-
-        make_item(
-            "3. Retrieve Specific Vulnerability", "GET",
-            "/vulnerabilities/1",
-            "Returns one vulnerability by id.",
-            token_role="auditor",
-            extra_cases=[
-                ("404 Not Found (unknown id)", "GET",
-                 "/vulnerabilities/9999", "admin", None),
-            ]),
-
-        make_item(
-            "4. Update Vulnerability", "PUT", "/vulnerabilities/3",
-            "Updates a vulnerability. Any of description, severity, status, "
-            "cvss_score and resolution_date may be sent; anything omitted "
-            "is left unchanged. Administrator and Analyst.",
-            token_role="analyst",
-            body={"description": "Confirmed on the staging instance as well.",
-                  "cvss_score": 6.5},
-            extra_cases=[
-                ("400 Bad Request (non-numeric CVSS)", "PUT",
-                 "/vulnerabilities/3", "analyst",
-                 {"cvss_score": "not-a-number"}),
-                ("400 Bad Request (nothing to update)", "PUT",
-                 "/vulnerabilities/3", "analyst", {}),
-            ]),
-
-        make_item(
-            "4b. Update Status - lifecycle", "PUT", "/vulnerabilities/1",
-            "The vulnerability lifecycle is Open -> Under Investigation -> "
-            "In Progress -> Resolved -> Closed. Note the extra 'In "
-            "Progress' step compared with incidents. Skipping a step is "
-            "rejected.",
-            token_role="analyst", body={"status": "Resolved"},
-            extra_cases=[
-                ("200 OK (-> Under Investigation)", "PUT",
-                 "/vulnerabilities/1", "analyst",
-                 {"status": "Under Investigation"}),
-                ("200 OK (-> In Progress)", "PUT", "/vulnerabilities/1",
-                 "analyst", {"status": "In Progress"}),
-                ("200 OK (-> Resolved, stamps resolution date)", "PUT",
-                 "/vulnerabilities/1", "analyst", {"status": "Resolved"}),
-            ]),
-
-        make_item(
-            "5. Search Vulnerabilities", "GET",
-            "/vulnerabilities/search?severity=High",
-            "Searches by CVE, severity, asset and status. Filters combine "
-            "with AND. The CVE filter matches partially, so ?cve=2024 "
-            "returns every CVE issued that year.",
-            token_role="analyst",
-            extra_cases=[
-                ("200 OK (by status)", "GET",
-                 "/vulnerabilities/search?status=Open", "analyst", None),
-                ("200 OK (partial CVE match)", "GET",
-                 "/vulnerabilities/search?cve=2024", "analyst", None),
-                ("200 OK (by asset)", "GET",
-                 "/vulnerabilities/search?asset_id=2", "analyst", None),
-                ("200 OK (two filters combined)", "GET",
-                 "/vulnerabilities/search?severity=High&status=Open",
-                 "analyst", None),
-                ("200 OK (no matches)", "GET",
-                 "/vulnerabilities/search?severity=Low", "analyst", None),
-                ("400 Bad Request (invalid filter value)", "GET",
-                 "/vulnerabilities/search?severity=Extreme", "analyst",
-                 None),
-            ]),
-
-        make_item(
-            "6. Delete Vulnerability", "DELETE", "/vulnerabilities/3",
-            "Removes a vulnerability record. Administrators only; an "
-            "analyst attempting this is refused and the attempt is written "
-            "to the audit log.",
-            token_role="analyst",
-            extra_cases=[
-                ("200 OK (administrator)", "DELETE", "/vulnerabilities/3",
-                 "admin", None),
-                ("404 Not Found (already deleted)", "DELETE",
-                 "/vulnerabilities/3", "admin", None),
-            ]),
+    s = config.SERVICE_VULNERABILITIES
+    return [
+        make_item("1. Add New Vulnerability", s, "POST", "/vulnerabilities",
+                  "Administrator only. The asset is resolved through "
+                  "Chris's internal lookup, which also supplies the owner "
+                  "notified for High and Critical findings.",
+                  token_variable="admin_token", capture_token=ADMIN_TOKEN,
+                  body={"title": "Remote code execution in XZ Utils",
+                        "description": "A backdoor allows unauthenticated "
+                                       "remote code execution.",
+                        "severity": "Critical", "affected_asset": 2,
+                        "cve_identifier": "CVE-2024-3094",
+                        "cvss_score": 10.0,
+                        "discovery_source": "Vendor advisory"}),
+        make_item("2. Retrieve All Vulnerabilities", s, "GET",
+                  "/vulnerabilities",
+                  "Complete list. Administrator, Analyst or Auditor. The "
+                  "shape Reports consumes: body.vulnerabilities with a "
+                  "success status and count.",
+                  token_variable="analyst_token",
+                  capture_token=ANALYST_TOKEN),
+        make_item("3. Retrieve Specific Vulnerability", s, "GET",
+                  "/vulnerabilities/1", "One vulnerability by id.",
+                  token_variable="analyst_token",
+                  capture_token=ANALYST_TOKEN),
+        make_item("4. Update Vulnerability", s, "PUT",
+                  "/vulnerabilities/1",
+                  "Administrator or Analyst. Status changes follow "
+                  "Open -> Under Investigation -> In Progress -> Resolved "
+                  "-> Closed, one step at a time.",
+                  token_variable="analyst_token",
+                  capture_token=ANALYST_TOKEN,
+                  body={"description": "Confirmed on staging as well.",
+                        "cvss_score": 9.8}),
+        make_item("5. Search Vulnerabilities", s, "GET",
+                  "/vulnerabilities/search?severity=Critical&status=Open",
+                  "Filters combine with AND. The CVE filter matches "
+                  "partially, so ?cve=2024 returns every CVE from 2024.",
+                  token_variable="analyst_token",
+                  capture_token=ANALYST_TOKEN),
+        make_item("6. Delete Vulnerability", s, "DELETE",
+                  "/vulnerabilities/9999",
+                  "Administrator only. Pointed at a non-existent id so "
+                  "regenerating this collection does not destroy data.",
+                  token_variable="admin_token", capture_token=ADMIN_TOKEN),
+        make_item("Health", s, "GET", "/health",
+                  "Readiness of this service."),
     ]
-    return [login_folder(), {"name": "Service 7 - Vulnerability Management",
-                             "item": items}]
 
 
-def build_notifications():
-    """Build the Service 8 collection.
+def notifications_items():
+    """Build the Service 8 requests, public and internal.
 
-    :return: The collection items.
+    :return: Items.
     :rtype: list
     """
-    items = [
-        make_item(
-            "1. Create Notification", "POST", "/notifications",
-            "Creates a notification for a user. Administrators only. "
-            "Notifications are also generated automatically by Service 3 "
-            "when an incident is assigned, and by Service 7 when a High or "
-            "Critical vulnerability is registered.",
-            token_role="admin",
-            body={
-                "user_id": 3,
-                "title": "Quarterly access review due",
-                "message": "Please review the access rights for the systems "
-                           "you administer.",
-                "notification_type": "System Notification",
-                "severity": "Low",
-            },
-            extra_cases=[
-                ("400 Bad Request (invalid type)", "POST", "/notifications",
-                 "admin",
-                 {"user_id": 3, "title": "Test", "message": "Test",
-                  "notification_type": "Carrier Pigeon", "severity": "Low"}),
-                ("404 Not Found (unknown recipient)", "POST",
-                 "/notifications", "admin",
-                 {"user_id": 9999, "title": "Test", "message": "Test",
-                  "notification_type": "Security Alert", "severity": "Low"}),
-                ("403 Forbidden (analyst may not create)", "POST",
-                 "/notifications", "analyst",
-                 {"user_id": 3, "title": "Test", "message": "Test",
-                  "notification_type": "Security Alert", "severity": "Low"}),
-            ]),
-
-        make_item(
-            "2. Retrieve User Notifications", "GET", "/notifications/user/2",
-            "Returns one user's notifications, newest first, with a count "
-            "of how many are unread. Analysts and employees may only read "
-            "their own inbox; administrators and auditors may read any.",
-            token_role="admin",
-            extra_cases=[
-                ("200 OK (empty inbox)", "GET", "/notifications/user/5",
-                 "admin", None),
-                ("404 Not Found (unknown user)", "GET",
-                 "/notifications/user/9999", "admin", None),
-                ("403 Forbidden (analyst reading another inbox)", "GET",
-                 "/notifications/user/4", "analyst", None),
-            ]),
-
-        make_item(
-            "3. Retrieve Specific Notification", "GET", "/notifications/1",
-            "Returns one notification by id.",
-            token_role="admin",
-            extra_cases=[
-                ("404 Not Found (unknown id)", "GET", "/notifications/9999",
-                 "admin", None),
-                ("403 Forbidden (not the recipient)", "GET",
-                 "/notifications/1", "employee", None),
-            ]),
-
-        make_item(
-            "4. Mark Notification as Read", "PUT", "/notifications/1/read",
-            "Marks a notification as read and stamps the read date. "
-            "Marking an already-read notification again leaves the original "
-            "date alone. Auditors are read-only and cannot call this.",
-            token_role="analyst",
-            extra_cases=[
-                ("200 OK (already read, date unchanged)", "PUT",
-                 "/notifications/1/read", "analyst", None),
-                ("403 Forbidden (auditor is read-only)", "PUT",
-                 "/notifications/1/read", "auditor", None),
-            ]),
-
-        make_item(
-            "5. Search Notifications", "GET",
-            "/notifications/search?status=Unread",
-            "Searches by user, type, severity and status. An analyst's "
-            "search is silently restricted to their own inbox, so the "
-            "filter cannot be used to read somebody else's notifications.",
-            token_role="admin",
-            extra_cases=[
-                ("200 OK (by type)", "GET",
-                 "/notifications/search?notification_type=Incident%20"
-                 "Assignment", "admin", None),
-                ("200 OK (by severity)", "GET",
-                 "/notifications/search?severity=Critical", "admin", None),
-                ("200 OK (analyst search, scoped to own inbox)", "GET",
-                 "/notifications/search?user_id=4", "analyst", None),
-                ("400 Bad Request (invalid status filter)", "GET",
-                 "/notifications/search?status=Archived", "admin", None),
-            ]),
-
-        make_item(
-            "6. Delete Notification", "DELETE", "/notifications/2",
-            "Removes a notification. Administrators only.",
-            token_role="analyst",
-            extra_cases=[
-                ("200 OK (administrator)", "DELETE", "/notifications/2",
-                 "admin", None),
-                ("404 Not Found (already deleted)", "DELETE",
-                 "/notifications/2", "admin", None),
-            ]),
+    s = config.SERVICE_NOTIFICATIONS
+    return [
+        make_item("1. Create Notification", s, "POST", "/notifications",
+                  "Administrator only. Notifications are also generated "
+                  "automatically by Incidents and Vulnerabilities through "
+                  "the internal endpoint below.",
+                  token_variable="admin_token", capture_token=ADMIN_TOKEN,
+                  body={"user_id": 2, "title": "Quarterly access review",
+                        "message": "Please review the access rights for "
+                                   "the systems you administer.",
+                        "notification_type": "System Notification",
+                        "severity": "Low"}),
+        make_item("2. Retrieve User Notifications", s, "GET",
+                  "/notifications/user/2",
+                  "Analysts and employees may only read their own inbox; "
+                  "administrators and auditors may read any.",
+                  token_variable="admin_token", capture_token=ADMIN_TOKEN),
+        make_item("3. Retrieve Specific Notification", s, "GET",
+                  "/notifications/1", "One notification by id.",
+                  token_variable="admin_token", capture_token=ADMIN_TOKEN),
+        make_item("4. Mark Notification as Read", s, "PUT",
+                  "/notifications/1/read",
+                  "Marks read and stamps read_date. Marking an "
+                  "already-read notification keeps the original date. "
+                  "Auditors are read-only.",
+                  token_variable="analyst_token",
+                  capture_token=ANALYST_TOKEN),
+        make_item("5. Search Notifications", s, "GET",
+                  "/notifications/search?status=Unread",
+                  "By user, type, severity and status. An analyst's search "
+                  "is silently scoped to their own inbox.",
+                  token_variable="admin_token", capture_token=ADMIN_TOKEN),
+        make_item("6. Delete Notification", s, "DELETE",
+                  "/notifications/9999",
+                  "Administrator only. Pointed at a non-existent id so "
+                  "regenerating does not destroy data. The delivery "
+                  "receipt survives a real deletion.",
+                  token_variable="admin_token", capture_token=ADMIN_TOKEN),
+        make_item("7. Internal delivery (service credential)", s, "POST",
+                  "/internal/notifications",
+                  "Section 7. Called by another service, not by a user. "
+                  "Authenticated by X-Service-Name and X-Service-Key, with "
+                  "a fresh Idempotency-Key per alert. An identical retry "
+                  "returns 200 with duplicate=true and creates nothing; a "
+                  "changed payload under the same key returns 409 "
+                  "IDEMPOTENCY_CONFLICT.",
+                  service_name="incidents", idempotency=True,
+                  capture_service_headers={
+                      "X-Service-Name": "incidents",
+                      "X-Service-Key": os.environ.get(
+                          "KARIM_INCIDENTS_SERVICE_KEY", "")},
+                  body={"user_id": 2, "actor_user_id": 1,
+                        "title": "Incident assigned",
+                        "message": "Incident 1 was assigned to you.",
+                        "notification_type": "Incident Assignment",
+                        "severity_level": "High"}),
+        make_item("Health", s, "GET", "/health",
+                  "Readiness of this service."),
     ]
-    return [login_folder(),
-            {"name": "Service 8 - Notification and Alert Management",
-             "item": items}]
 
 
 def main():
-    """Reset the data, run every request and write the collection files.
+    """Generate all three collections and the environment.
 
     :return: ``None``
     :rtype: NoneType
@@ -757,52 +530,34 @@ def main():
     if not os.path.isdir(OUT_DIR):
         os.makedirs(OUT_DIR)
 
-    print("Resetting the database")
-    from database import create_db_tables
-    from seed import clear_tables, seed_assets, seed_users
-    create_db_tables()
-    clear_tables()
-    seed_users()
-    seed_assets()
+    if not ADMIN_TOKEN:
+        print("No POSTMAN_CAPTURE_ADMIN_TOKEN set. Requests will still be")
+        print("written, but examples will record that nothing was captured")
+        print("rather than inventing a response.\n")
 
-    print("Logging in")
-    for role, username, password in (
-            ("admin", "karim.admin", "Admin#2026"),
-            ("analyst", "rana.analyst", "Analyst#2026"),
-            ("employee", "lina.employee", "Employee#2026"),
-            ("auditor", "samir.auditor", "Auditor#2026")):
-        _, _, text = call("POST", "/auth/login",
-                          {"username": username, "password": password})
-        TOKENS[role] = json.loads(text)["token"]
-    print("  got %d tokens" % len(TOKENS))
-
-    print("\nExecuting requests and capturing responses")
+    print("Generating collections")
     write_collection(
         "Service 3 - Incident Management.postman_collection.json",
-        "SIRMS - Service 3 - Incident Management (Karim Hajj Ali)",
-        "Incident Management Service for the Security Incident Detection "
-        "and Response Management System. Implemented by Karim Hajj Ali. "
-        "Run the Authentication folder first to populate the tokens.",
-        build_incidents())
+        "SIRMS v1 - Service 3 - Incident Management (Karim Hajj Ali)",
+        "Incident Management under team-integration-v1.0.0, on port 8003."
+        + HOW_TO_AUTHENTICATE,
+        incidents_items())
 
     write_collection(
         "Service 7 - Vulnerability Management.postman_collection.json",
-        "SIRMS - Service 7 - Vulnerability Management (Karim Hajj Ali)",
-        "Vulnerability Management Service for the Security Incident "
-        "Detection and Response Management System. Implemented by Karim "
-        "Hajj Ali. Run the Authentication folder first to populate the "
-        "tokens.",
-        build_vulnerabilities())
+        "SIRMS v1 - Service 7 - Vulnerability Management (Karim Hajj Ali)",
+        "Vulnerability Management under team-integration-v1.0.0, on port "
+        "8007." + HOW_TO_AUTHENTICATE,
+        vulnerabilities_items())
 
     write_collection(
         "Service 8 - Notification Management.postman_collection.json",
-        "SIRMS - Service 8 - Notification and Alert Management "
+        "SIRMS v1 - Service 8 - Notification and Alert Management "
         "(Karim Hajj Ali)",
-        "Notification and Alert Management Service for the Security "
-        "Incident Detection and Response Management System. Implemented by "
-        "Karim Hajj Ali. Run the Authentication folder first to populate "
-        "the tokens.",
-        build_notifications())
+        "Notification and Alert Management under team-integration-v1.0.0, "
+        "on port 8008, including the internal delivery endpoint."
+        + HOW_TO_AUTHENTICATE,
+        notifications_items())
 
     write_environment()
     print("\nWritten to %s" % OUT_DIR)

@@ -1,56 +1,45 @@
 """Database layer for Service 7 -- Vulnerability Management.
 
-Reads join against ``assets`` so a vulnerability comes back with the name of
-the machine it affects rather than just an id, which is what makes the
-search results readable.
+Ported to PostgreSQL for team-integration-v1.0.0. As with incidents, the
+join onto ``assets`` is gone: the asset belongs to Chris, so the asset's
+name, criticality and owner now come from
+:func:`clients.assets_client.lookup_asset` at the one point they are
+actually needed, which is deciding who to alert when a serious
+vulnerability is registered.
 
 :author: Karim Hajj Ali
 """
 
-from datetime import datetime
+import db
+from serialization import jsonify_row, jsonify_rows, utc_now
 
-from database import connect_to_db, row_to_dict, rows_to_list
-
-#: Selects a vulnerability along with the asset it was found on.
-_VULNERABILITY_SELECT = """
-    SELECT v.*,
-           a.asset_name        AS affected_asset_name,
-           a.criticality_level AS affected_asset_criticality,
-           a.owner_id          AS affected_asset_owner_id
-      FROM vulnerabilities v
-      LEFT JOIN assets a ON a.asset_id = v.asset_id
+#: Only my own columns. No cross-owner joins.
+_VULNERABILITY_COLUMNS = """
+    vulnerability_id, title, description, cve_identifier, cvss_score,
+    severity_level, asset_id, discovery_source, status,
+    creation_date, resolution_date
 """
 
 
-def insert_vulnerability(row):
-    """Insert a new vulnerability. It always starts at status ``Open``.
+def insert_vulnerability(cursor, row):
+    """Insert a vulnerability inside an open transaction.
 
-    :param row: Column values, as produced by
-        :meth:`models.Vulnerability.to_row`.
+    :param cursor: An open cursor inside the business transaction.
+    :type cursor: psycopg.Cursor
+    :param row: Column values from :meth:`models.Vulnerability.to_row`.
     :type row: dict
-    :return: The stored vulnerability, or ``{}`` if the insert failed.
+    :return: The stored vulnerability.
     :rtype: dict
     """
-    conn = connect_to_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO vulnerabilities (title, description, "
-            "cve_identifier, cvss_score, severity_level, asset_id, "
-            "discovery_source, status, creation_date) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 'Open', ?)",
-            (row["title"], row["description"], row["cve_identifier"],
-             row["cvss_score"], row["severity_level"], row["asset_id"],
-             row["discovery_source"],
-             datetime.now().isoformat(timespec="seconds")))
-        conn.commit()
-        new_id = cur.lastrowid
-    except Exception:
-        conn.rollback()
-        return {}
-    finally:
-        conn.close()
-    return get_vulnerability_by_id(new_id)
+    cursor.execute(
+        "INSERT INTO vulnerabilities (title, description, cve_identifier, "
+        "cvss_score, severity_level, asset_id, discovery_source, status, "
+        "creation_date) VALUES (%s, %s, %s, %s, %s, %s, %s, 'Open', %s) "
+        "RETURNING " + _VULNERABILITY_COLUMNS,
+        (row["title"], row["description"], row["cve_identifier"],
+         row["cvss_score"], row["severity_level"], row["asset_id"],
+         row["discovery_source"], utc_now()))
+    return jsonify_row(cursor.fetchone())
 
 
 def get_vulnerabilities():
@@ -59,14 +48,9 @@ def get_vulnerabilities():
     :return: All stored vulnerabilities.
     :rtype: list
     """
-    conn = connect_to_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(_VULNERABILITY_SELECT +
-                    " ORDER BY v.creation_date DESC, v.vulnerability_id DESC")
-        return rows_to_list(cur.fetchall())
-    finally:
-        conn.close()
+    return jsonify_rows(db.query_all(
+        "SELECT " + _VULNERABILITY_COLUMNS + " FROM vulnerabilities "
+        "ORDER BY creation_date DESC, vulnerability_id DESC"))
 
 
 def get_vulnerability_by_id(vulnerability_id):
@@ -74,32 +58,29 @@ def get_vulnerability_by_id(vulnerability_id):
 
     :param vulnerability_id: The vulnerability to fetch.
     :type vulnerability_id: int
-    :return: The vulnerability, or ``None`` if no such row exists.
+    :return: The vulnerability, or ``None``.
     :rtype: dict or NoneType
     """
-    conn = connect_to_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(_VULNERABILITY_SELECT + " WHERE v.vulnerability_id = ?",
-                    (vulnerability_id,))
-        return row_to_dict(cur.fetchone())
-    finally:
-        conn.close()
+    return jsonify_row(db.query_one(
+        "SELECT " + _VULNERABILITY_COLUMNS +
+        " FROM vulnerabilities WHERE vulnerability_id = %s",
+        (vulnerability_id,)))
 
 
-def update_vulnerability(vulnerability_id, fields):
-    """Update whichever vulnerability fields were supplied.
+def update_vulnerability(cursor, vulnerability_id, fields):
+    """Update supplied vulnerability fields inside an open transaction.
 
-    Only the columns present in ``fields`` are touched, so a caller changing
-    just the CVSS score does not have to resend the description. Column
-    names are matched against a fixed whitelist before being put into the
-    SQL, so nothing from the request body can reach the statement itself.
+    Column names are matched against a fixed whitelist before reaching the
+    statement, so nothing from a request body can steer the SQL. Values are
+    bound as parameters.
 
+    :param cursor: An open cursor inside the business transaction.
+    :type cursor: psycopg.Cursor
     :param vulnerability_id: The vulnerability to update.
     :type vulnerability_id: int
     :param fields: Column name to new value.
     :type fields: dict
-    :return: The updated vulnerability, or ``None`` if the update failed.
+    :return: The updated vulnerability, or ``None``.
     :rtype: dict or NoneType
     """
     allowed = ("description", "severity_level", "status", "cvss_score",
@@ -107,36 +88,27 @@ def update_vulnerability(vulnerability_id, fields):
 
     assignments = []
     params = []
-    for column, value in fields.items():
-        if column in allowed:
-            assignments.append("%s = ?" % column)
-            params.append(value)
+    for column in allowed:
+        if column in fields:
+            assignments.append("%s = %%s" % column)
+            params.append(fields[column])
 
     if not assignments:
         return get_vulnerability_by_id(vulnerability_id)
 
     params.append(vulnerability_id)
-
-    conn = connect_to_db()
-    try:
-        conn.execute(
-            "UPDATE vulnerabilities SET %s WHERE vulnerability_id = ?"
-            % ", ".join(assignments), tuple(params))
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        return None
-    finally:
-        conn.close()
-    return get_vulnerability_by_id(vulnerability_id)
+    cursor.execute(
+        "UPDATE vulnerabilities SET %s WHERE vulnerability_id = %%s "
+        "RETURNING %s" % (", ".join(assignments), _VULNERABILITY_COLUMNS),
+        tuple(params))
+    return jsonify_row(cursor.fetchone())
 
 
 def search_vulnerabilities(cve=None, severity=None, asset_id=None,
                            status=None):
-    """Search vulnerabilities by CVE, severity, asset and status.
+    """Search by CVE, severity, asset and status, combined with AND.
 
-    The CVE filter is a partial, case-insensitive match, so searching for
-    ``2024`` finds every CVE issued that year. The other three are exact.
+    The CVE filter matches partially and case-insensitively.
 
     :param cve: Whole or partial CVE identifier, defaults to None.
     :type cve: str, optional
@@ -149,50 +121,37 @@ def search_vulnerabilities(cve=None, severity=None, asset_id=None,
     :return: Matching vulnerabilities, newest first.
     :rtype: list
     """
-    query = _VULNERABILITY_SELECT + " WHERE 1 = 1"
+    sql = "SELECT " + _VULNERABILITY_COLUMNS + " FROM vulnerabilities WHERE TRUE"
     params = []
 
     if cve:
-        query += " AND v.cve_identifier LIKE ?"
+        sql += " AND cve_identifier ILIKE %s"
         params.append("%" + cve + "%")
     if severity:
-        query += " AND v.severity_level = ?"
+        sql += " AND severity_level = %s"
         params.append(severity)
     if asset_id is not None:
-        query += " AND v.asset_id = ?"
+        sql += " AND asset_id = %s"
         params.append(asset_id)
     if status:
-        query += " AND v.status = ?"
+        sql += " AND status = %s"
         params.append(status)
 
-    query += " ORDER BY v.creation_date DESC, v.vulnerability_id DESC"
-
-    conn = connect_to_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(query, tuple(params))
-        return rows_to_list(cur.fetchall())
-    finally:
-        conn.close()
+    sql += " ORDER BY creation_date DESC, vulnerability_id DESC"
+    return jsonify_rows(db.query_all(sql, tuple(params)))
 
 
-def delete_vulnerability(vulnerability_id):
-    """Delete one vulnerability record.
+def delete_vulnerability(cursor, vulnerability_id):
+    """Delete one vulnerability inside an open transaction.
 
+    :param cursor: An open cursor inside the business transaction.
+    :type cursor: psycopg.Cursor
     :param vulnerability_id: The vulnerability to delete.
     :type vulnerability_id: int
-    :return: ``True`` if a row was actually removed.
+    :return: ``True`` if a row was removed.
     :rtype: bool
     """
-    conn = connect_to_db()
-    try:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM vulnerabilities WHERE vulnerability_id = ?",
-                    (vulnerability_id,))
-        conn.commit()
-        return cur.rowcount > 0
-    except Exception:
-        conn.rollback()
-        return False
-    finally:
-        conn.close()
+    cursor.execute(
+        "DELETE FROM vulnerabilities WHERE vulnerability_id = %s",
+        (vulnerability_id,))
+    return cursor.rowcount > 0

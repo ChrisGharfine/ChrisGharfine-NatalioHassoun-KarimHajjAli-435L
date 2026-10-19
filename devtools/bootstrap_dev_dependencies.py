@@ -49,8 +49,15 @@ CREATE TABLE IF NOT EXISTS assets (
     asset_type  TEXT   NOT NULL,
     criticality TEXT   NOT NULL,
     status      TEXT   NOT NULL DEFAULT 'active',
-    owner_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT
+    owner_id    INTEGER REFERENCES users(id) ON DELETE RESTRICT
 );
+
+-- owner_id is left nullable on purpose. Section 3 says assets.owner_id
+-- references users.id ON DELETE RESTRICT but does not say it is mandatory,
+-- and my Vulnerability service has to cope with an asset that has no owner
+-- to notify. Guessing NOT NULL here would hide that path in testing.
+-- Idempotent, so re-running against an older stand-in relaxes it.
+ALTER TABLE assets ALTER COLUMN owner_id DROP NOT NULL;
 """
 
 #: Canonical role strings from section 4.2.

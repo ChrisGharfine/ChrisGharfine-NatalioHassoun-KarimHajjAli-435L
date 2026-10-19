@@ -1,38 +1,29 @@
 """REST API for Service 7 -- Vulnerability Management.
 
-Six endpoints, as required by the specification:
-
-====== ==================================== ===================================
-Method Endpoint                             Who may call it
-====== ==================================== ===================================
-POST   /vulnerabilities                     Security Administrator
-GET    /vulnerabilities                     Administrator, Analyst, Auditor
-GET    /vulnerabilities/{id}                Administrator, Analyst, Auditor
-PUT    /vulnerabilities/{id}                Administrator, Analyst
-GET    /vulnerabilities/search              Administrator, Analyst, Auditor
-DELETE /vulnerabilities/{id}                Security Administrator
-====== ==================================== ===================================
-
-Regular Employees have no access to this service at all, so they are absent
-from every decorator in this file.
-
-Like incidents, vulnerabilities walk a fixed lifecycle, but theirs has an
-extra ``In Progress`` step for remediation work:
-``Open -> Under Investigation -> In Progress -> Resolved -> Closed``.
+Ported to team-integration-v1.0.0. Public paths, permissions, envelopes and
+Title Case enums are unchanged; the authentication, the asset lookup and
+the audit/notification delivery underneath them are all new.
 
 :author: Karim Hajj Ali
 """
 
-from datetime import datetime
-
 from flask import Blueprint, jsonify, request
 
+import config
 import constants
-from audit import write_log
-from auth import current_user, require_role
-from database import record_exists
+import db
+from clients.assets_client import AssetsUnavailable, lookup_asset
 from models import ValidationError, Vulnerability, VulnerabilityWorkflow
-from services.notifications_db import send_notification
+from outbox.audit_outbox import (
+    ACTION_VULNERABILITY_CREATED,
+    ACTION_VULNERABILITY_DELETED,
+    ACTION_VULNERABILITY_UPDATED,
+    queue_audit_event,
+)
+from outbox.notification_outbox import queue_notification
+from security.guard import current_user, error, require_role
+from security.identity import IdentityUnavailable, is_assignable, lookup_user
+from serialization import utc_now
 from services.vulnerabilities_db import (
     delete_vulnerability,
     get_vulnerabilities,
@@ -44,9 +35,8 @@ from services.vulnerabilities_db import (
 
 vulnerabilities_bp = Blueprint("vulnerabilities", __name__)
 
-SERVICE_NAME = "Vulnerability Management"
+SERVICE = config.SERVICE_VULNERABILITIES
 
-#: One shared workflow object -- it holds no per-request state.
 WORKFLOW = VulnerabilityWorkflow()
 
 #: A new vulnerability at or above this severity alerts the asset owner.
@@ -65,15 +55,12 @@ def api_create_vulnerability():
 
     Developed by Karim Hajj Ali.
 
-    Expects ``title``, ``description``, ``severity`` and ``affected_asset``.
-    ``cve_identifier``, ``cvss_score`` and ``discovery_source`` are optional
-    but validated when present.
-
-    A High or Critical finding also raises a ``Vulnerability Alert`` for the
-    owner of the affected asset, which is the hand-off into Service 8.
+    The affected asset is resolved through Chris's internal lookup, which
+    also supplies the owner to notify when the finding is High or Critical.
 
     :return: ``201`` with the stored vulnerability, ``400`` on a validation
-        error, or ``404`` if the affected asset does not exist.
+        error, ``404`` if the asset does not exist, or ``503`` if Assets or
+        Users cannot be consulted.
     :rtype: flask.Response
     """
     body = request.get_json(silent=True) or {}
@@ -89,47 +76,64 @@ def api_create_vulnerability():
             cvss_score=body.get("cvss_score"),
             discovery_source=body.get("discovery_source"))
         vulnerability.validate()
-    except ValidationError as error:
-        return jsonify({"status": "error", "message": error.message}), 400
+    except ValidationError as failure:
+        return error(failure.message, 400)
 
-    if not record_exists("assets", "asset_id", vulnerability.get_asset_id()):
-        return jsonify({
-            "status": "error",
-            "message": "No asset with id %s exists"
-                       % vulnerability.get_asset_id(),
-        }), 404
+    try:
+        asset = lookup_asset(vulnerability.get_asset_id(), SERVICE)
+    except AssetsUnavailable as failure:
+        return error(failure.message, 503)
 
-    stored = insert_vulnerability(vulnerability.to_row())
-    if not stored:
-        return jsonify({
-            "status": "error",
-            "message": "The vulnerability could not be saved",
-        }), 500
+    if asset is None:
+        return error("No asset with id %s exists"
+                     % vulnerability.get_asset_id(), 404)
 
-    write_log(caller["user_id"], "Vulnerability created",
-              "Vulnerability %s '%s' (%s) logged against asset %s"
-              % (stored["vulnerability_id"], stored["title"],
-                 stored["severity_level"], stored["asset_id"]),
-              "Warning" if stored["severity_level"] in _ALERT_SEVERITIES
-              else "Information",
-              SERVICE_NAME)
+    severity = vulnerability.get_severity()
+    owner_id = asset.get("owner_id")
+    notify_owner = severity in _ALERT_SEVERITIES and owner_id is not None
 
-    # Service 8 hand-off: warn the asset owner about serious findings.
-    if (stored["severity_level"] in _ALERT_SEVERITIES
-            and stored["affected_asset_owner_id"]):
-        send_notification(
-            user_id=stored["affected_asset_owner_id"],
-            title="%s vulnerability on %s"
-                  % (stored["severity_level"],
-                     stored["affected_asset_name"]),
-            message="'%s' was found on your asset '%s'. CVE: %s. "
-                    "CVSS score: %s."
-                    % (stored["title"], stored["affected_asset_name"],
-                       stored["cve_identifier"] or "not assigned",
-                       stored["cvss_score"]
-                       if stored["cvss_score"] is not None else "not scored"),
-            notification_type="Vulnerability Alert",
-            severity=stored["severity_level"])
+    # Only alert an owner who can actually receive it. An inactive or
+    # deleted owner is not an error for the vulnerability itself.
+    if notify_owner:
+        try:
+            owner = lookup_user(owner_id, SERVICE)
+        except IdentityUnavailable as failure:
+            return error(failure.message, 503)
+        notify_owner = is_assignable(owner)
+
+    row = vulnerability.to_row()
+    with db.transaction() as cur:
+        stored = insert_vulnerability(cur, row)
+        queue_audit_event(
+            source_service=SERVICE,
+            user_id=caller["id"],
+            action=ACTION_VULNERABILITY_CREATED,
+            description="Vulnerability %s (%s) logged against asset %s"
+                        % (stored["vulnerability_id"],
+                           stored["severity_level"], stored["asset_id"]),
+            severity="Warning" if severity in _ALERT_SEVERITIES
+                     else "Information",
+            related_service=SERVICE,
+            cursor=cur)
+
+        if notify_owner:
+            queue_notification(
+                source_service=SERVICE,
+                recipient_user_id=owner_id,
+                actor_user_id=caller["id"],
+                title="%s vulnerability on %s"
+                      % (severity, asset.get("name") or
+                         "asset %s" % stored["asset_id"]),
+                message="'%s' was found on your asset. CVE: %s. "
+                        "CVSS score: %s."
+                        % (stored["title"],
+                           stored["cve_identifier"] or "not assigned",
+                           stored["cvss_score"]
+                           if stored["cvss_score"] is not None
+                           else "not scored"),
+                notification_type="Vulnerability Alert",
+                severity_level=severity,
+                cursor=cur)
 
     return jsonify({
         "status": "success",
@@ -151,8 +155,7 @@ def api_get_vulnerabilities():
 
     Developed by Karim Hajj Ali.
 
-    :return: ``200`` with the list, each entry carrying its severity,
-        affected asset and current status.
+    :return: ``200`` with the complete list.
     :rtype: flask.Response
     """
     vulnerabilities = get_vulnerabilities()
@@ -186,21 +189,15 @@ def api_get_vulnerability(vulnerability_id):
 
     :param vulnerability_id: The vulnerability to return.
     :type vulnerability_id: int
-    :return: ``200`` with the vulnerability, or ``404`` if it does not exist.
+    :return: ``200`` with the vulnerability, or ``404``.
     :rtype: flask.Response
     """
     vulnerability = get_vulnerability_by_id(vulnerability_id)
     if vulnerability is None:
-        return jsonify({
-            "status": "error",
-            "message": "No vulnerability with id %s exists"
-                       % vulnerability_id,
-        }), 404
-
-    return jsonify({
-        "status": "success",
-        "vulnerability": vulnerability,
-    }), 200
+        return error("No vulnerability with id %s exists" % vulnerability_id,
+                     404)
+    return jsonify({"status": "success",
+                    "vulnerability": vulnerability}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -216,17 +213,10 @@ def api_update_vulnerability(vulnerability_id):
 
     Developed by Karim Hajj Ali.
 
-    Accepts any of ``description``, ``severity``, ``status``, ``cvss_score``
-    and ``resolution_date``. Fields that are not sent are left alone.
-
-    A ``status`` change goes through the same lifecycle check as incidents,
-    so remediation progress cannot skip steps. Reaching ``Resolved`` stamps
-    the resolution date automatically unless one was supplied.
-
     :param vulnerability_id: The vulnerability to update.
     :type vulnerability_id: int
     :return: ``200`` with the updated record, ``400`` on a validation error,
-        or ``404`` if the vulnerability does not exist.
+        or ``404``.
     :rtype: flask.Response
     """
     body = request.get_json(silent=True) or {}
@@ -234,46 +224,31 @@ def api_update_vulnerability(vulnerability_id):
 
     existing = get_vulnerability_by_id(vulnerability_id)
     if existing is None:
-        return jsonify({
-            "status": "error",
-            "message": "No vulnerability with id %s exists"
-                       % vulnerability_id,
-        }), 404
+        return error("No vulnerability with id %s exists" % vulnerability_id,
+                     404)
 
     fields = {}
 
     if "description" in body:
         description = body.get("description")
         if not isinstance(description, str) or not description.strip():
-            return jsonify({
-                "status": "error",
-                "message": "'description' must be a non-empty string",
-            }), 400
+            return error("'description' must be a non-empty string", 400)
         fields["description"] = description.strip()
 
     if "severity" in body:
         severity = body.get("severity")
         if severity not in constants.SEVERITIES:
-            return jsonify({
-                "status": "error",
-                "message": "'severity' must be one of: %s"
-                           % ", ".join(constants.SEVERITIES),
-            }), 400
+            return error("'severity' must be one of: %s"
+                         % ", ".join(constants.SEVERITIES), 400)
         fields["severity_level"] = severity
 
     if "cvss_score" in body:
         try:
             score = float(body.get("cvss_score"))
         except (TypeError, ValueError):
-            return jsonify({
-                "status": "error",
-                "message": "'cvss_score' must be a number",
-            }), 400
+            return error("'cvss_score' must be a number", 400)
         if score < 0.0 or score > 10.0:
-            return jsonify({
-                "status": "error",
-                "message": "'cvss_score' must be between 0.0 and 10.0",
-            }), 400
+            return error("'cvss_score' must be between 0.0 and 10.0", 400)
         fields["cvss_score"] = round(score, 1)
 
     if "resolution_date" in body:
@@ -283,38 +258,30 @@ def api_update_vulnerability(vulnerability_id):
         new_status = body.get("status")
         try:
             WORKFLOW.check_transition(existing["status"], new_status)
-        except ValidationError as error:
-            return jsonify({
-                "status": "error",
-                "message": error.message,
-            }), 400
+        except ValidationError as failure:
+            return error(failure.message, 400)
         fields["status"] = new_status
         if (new_status in constants.VULNERABILITY_CLOSING_STATUSES
                 and "resolution_date" not in fields
                 and existing["resolution_date"] is None):
-            fields["resolution_date"] = datetime.now().isoformat(
-                timespec="seconds")
+            fields["resolution_date"] = utc_now()
 
     if not fields:
-        return jsonify({
-            "status": "error",
-            "message": "No updatable fields were supplied. Send any of: "
-                       "description, severity, status, cvss_score, "
-                       "resolution_date.",
-        }), 400
+        return error("No updatable fields were supplied. Send any of: "
+                     "description, severity, status, cvss_score, "
+                     "resolution_date.", 400)
 
-    updated = update_vulnerability(vulnerability_id, fields)
-    if updated is None:
-        return jsonify({
-            "status": "error",
-            "message": "The vulnerability could not be updated",
-        }), 500
-
-    write_log(caller["user_id"], "Vulnerability updated",
-              "Vulnerability %s updated by %s. Fields changed: %s"
-              % (vulnerability_id, caller["full_name"],
-                 ", ".join(sorted(fields.keys()))),
-              "Information", SERVICE_NAME)
+    with db.transaction() as cur:
+        updated = update_vulnerability(cur, vulnerability_id, fields)
+        queue_audit_event(
+            source_service=SERVICE,
+            user_id=caller["id"],
+            action=ACTION_VULNERABILITY_UPDATED,
+            description="Vulnerability %s updated. Fields changed: %s"
+                        % (vulnerability_id, ", ".join(sorted(fields))),
+            severity="Information",
+            related_service=SERVICE,
+            cursor=cur)
 
     return jsonify({
         "status": "success",
@@ -337,15 +304,7 @@ def api_search_vulnerabilities():
 
     Developed by Karim Hajj Ali.
 
-    Criteria arrive as query string parameters and combine with ``AND``::
-
-        GET /vulnerabilities/search?severity=Critical&status=Open
-
-    The CVE filter matches partially, so ``?cve=2024`` returns every CVE
-    issued in 2024.
-
-    :return: ``200`` with the matches, or ``400`` if a filter value is not a
-        recognised option.
+    :return: ``200`` with the matches, or ``400`` on an invalid filter.
     :rtype: flask.Response
     """
     cve = request.args.get("cve")
@@ -354,40 +313,27 @@ def api_search_vulnerabilities():
     status = request.args.get("status")
 
     if severity and severity not in constants.SEVERITIES:
-        return jsonify({
-            "status": "error",
-            "message": "'severity' must be one of: %s"
-                       % ", ".join(constants.SEVERITIES),
-        }), 400
+        return error("'severity' must be one of: %s"
+                     % ", ".join(constants.SEVERITIES), 400)
 
     if status and status not in constants.VULNERABILITY_STATUSES:
-        return jsonify({
-            "status": "error",
-            "message": "'status' must be one of: %s"
-                       % ", ".join(constants.VULNERABILITY_STATUSES),
-        }), 400
+        return error("'status' must be one of: %s"
+                     % ", ".join(constants.VULNERABILITY_STATUSES), 400)
 
     if asset_id is not None:
         try:
             asset_id = int(asset_id)
         except ValueError:
-            return jsonify({
-                "status": "error",
-                "message": "'asset_id' must be an integer",
-            }), 400
+            return error("'asset_id' must be an integer", 400)
 
-    results = search_vulnerabilities(
-        cve=cve, severity=severity, asset_id=asset_id, status=status)
+    results = search_vulnerabilities(cve=cve, severity=severity,
+                                     asset_id=asset_id, status=status)
 
     return jsonify({
         "status": "success",
         "count": len(results),
-        "filters_applied": {
-            "cve": cve,
-            "severity": severity,
-            "asset_id": asset_id,
-            "status": status,
-        },
+        "filters_applied": {"cve": cve, "severity": severity,
+                            "asset_id": asset_id, "status": status},
         "vulnerabilities": results,
     }), 200
 
@@ -405,37 +351,30 @@ def api_delete_vulnerability(vulnerability_id):
 
     Developed by Karim Hajj Ali.
 
-    Administrators only. An analyst attempting this is refused with ``403``
-    and the attempt is recorded in the audit log by
-    :func:`auth.require_role`.
-
     :param vulnerability_id: The vulnerability to delete.
     :type vulnerability_id: int
-    :return: ``200`` on success, or ``404`` if it does not exist.
+    :return: ``200`` on success, or ``404``.
     :rtype: flask.Response
     """
     caller = current_user()
 
     existing = get_vulnerability_by_id(vulnerability_id)
     if existing is None:
-        return jsonify({
-            "status": "error",
-            "message": "No vulnerability with id %s exists"
-                       % vulnerability_id,
-        }), 404
+        return error("No vulnerability with id %s exists" % vulnerability_id,
+                     404)
 
-    if not delete_vulnerability(vulnerability_id):
-        return jsonify({
-            "status": "error",
-            "message": "The vulnerability could not be deleted",
-        }), 500
+    with db.transaction() as cur:
+        removed = delete_vulnerability(cur, vulnerability_id)
+        if not removed:
+            return error("The vulnerability could not be deleted", 500)
+        queue_audit_event(
+            source_service=SERVICE,
+            user_id=caller["id"],
+            action=ACTION_VULNERABILITY_DELETED,
+            description="Vulnerability %s deleted" % vulnerability_id,
+            severity="Warning",
+            related_service=SERVICE,
+            cursor=cur)
 
-    write_log(caller["user_id"], "Vulnerability deleted",
-              "Vulnerability %s '%s' was deleted by %s"
-              % (vulnerability_id, existing["title"], caller["full_name"]),
-              "Warning", SERVICE_NAME)
-
-    return jsonify({
-        "status": "success",
-        "message": "Vulnerability deleted successfully",
-    }), 200
+    return jsonify({"status": "success",
+                    "message": "Vulnerability deleted successfully"}), 200

@@ -1,7 +1,7 @@
-app module
-==========
+migrate module
+==============
 
-.. automodule:: app
+.. automodule:: migrate
    :members:
    :show-inheritance:
    :undoc-members:

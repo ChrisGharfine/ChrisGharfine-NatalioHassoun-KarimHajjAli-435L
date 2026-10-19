@@ -1,185 +1,73 @@
 {
   "info": {
-    "_postman_id": "85146f50-7ab1-45c2-8df5-f284cc01cab0",
-    "name": "SIRMS - Service 3 - Incident Management (Karim Hajj Ali)",
-    "description": "Incident Management Service for the Security Incident Detection and Response Management System. Implemented by Karim Hajj Ali. Run the Authentication folder first to populate the tokens.",
+    "_postman_id": "ac5d490d-8094-44cb-ad86-dc7c2a0e9222",
+    "name": "SIRMS v1 - Service 3 - Incident Management (Karim Hajj Ali)",
+    "description": "Incident Management under team-integration-v1.0.0, on port 8003.\nAuthentication under team-integration-v1.0.0\n--------------------------------------------\nThere is no login request in these collections. Natalio's Users service is\nthe only token issuer:\n\n    POST {{users_url}}/users/login\n    {\"identifier\": \"your.username\", \"password\": \"...\"}\n\nTake `data.access_token` from his response and paste it into the\n`admin_token` / `analyst_token` environment variable. Tokens last 1800\nseconds. Never commit a filled-in environment.\n\nThe internal collection uses service credentials instead, not a user\ntoken: `X-Service-Name` plus `X-Service-Key`, with a fresh\n`Idempotency-Key` per delivery (Postman's {{$guid}} generates one).\n\nHow the saved examples were captured\n------------------------------------\nCaptured on 19 October 2026 against Karim's three real services running on\nports 8003/8007/8008, with Natalio's Users and Logs and Chris's Assets\nreplaced by TEST DOUBLES (tests/upstream_double.py).\n\nThese examples therefore show Karim's services behaving correctly against\nthe v1 contracts. They are NOT evidence of live team integration, and\nsection 9 evidence must be recaptured against the real nine services.\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "0. Authentication (run first)",
-      "description": "Logs in as each role and saves the tokens. Authentication belongs to Service 1 and is included here only so this collection can be run on its own.",
-      "item": [
-        {
-          "name": "Login as Security Administrator",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    pm.environment.set(\"admin_token\", pm.response.json().token);",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/auth/login",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
-            "description": "Authenticates and stores the token in the 'admin_token' environment variable. Run this before the other requests.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"karim.admin\",\n  \"password\": \"Admin#2026\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+      "name": "1. Create Incident",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
           },
-          "response": [
-            {
-              "name": "200 OK",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/auth/login",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "description": "Authenticates and stores the token in the 'admin_token' environment variable. Run this before the other requests.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"username\": \"karim.admin\",\n  \"password\": \"Admin#2026\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"Login successful\",\n  \"status\": \"success\",\n  \"token\": \"4acce1a936644348a8e2543b62172adb\",\n  \"user\": {\n    \"full_name\": \"Karim Hajj Ali\",\n    \"role\": \"Security Administrator\",\n    \"user_id\": 1,\n    \"username\": \"karim.admin\"\n  }\n}"
-            },
-            {
-              "name": "401 UNAUTHORIZED (wrong password)",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/auth/login",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "description": "Authentication failure case.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"username\": \"karim.admin\",\n  \"password\": \"wrong-password\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "UNAUTHORIZED",
-              "code": 401,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"Invalid username or password\",\n  \"status\": \"error\"\n}"
-            }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents"
           ]
         },
-        {
-          "name": "Login as Security Analyst",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    pm.environment.set(\"analyst_token\", pm.response.json().token);",
-                  "}"
-                ]
-              }
+        "description": "Report an incident. Administrator or Regular Employee. An employee is always recorded as their own reporter.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Ransomware detected on domain controller\",\n  \"description\": \"Encryption activity flagged on the domain controller.\",\n  \"category\": \"Malware Infection\",\n  \"severity\": \"Critical\",\n  \"affected_asset\": 1\n}",
+          "options": {
+            "raw": {
+              "language": "json"
             }
-          ],
-          "request": {
+          }
+        }
+      },
+      "response": [
+        {
+          "name": "201 CREATED",
+          "originalRequest": {
             "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
               }
             ],
             "url": {
-              "raw": "{{base_url}}/auth/login",
+              "raw": "{{incidents_url}}/incidents",
               "host": [
-                "{{base_url}}"
+                "{{incidents_url}}"
               ],
               "path": [
-                "auth",
-                "login"
+                "incidents"
               ]
             },
-            "description": "Authenticates and stores the token in the 'analyst_token' environment variable. Run this before the other requests.",
+            "description": "Report an incident. Administrator or Regular Employee. An employee is always recorded as their own reporter.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"rana.analyst\",\n  \"password\": \"Analyst#2026\"\n}",
+              "raw": "{\n  \"title\": \"Ransomware detected on domain controller\",\n  \"description\": \"Encryption activity flagged on the domain controller.\",\n  \"category\": \"Malware Infection\",\n  \"severity\": \"Critical\",\n  \"affected_asset\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -187,507 +75,45 @@
               }
             }
           },
-          "response": [
+          "status": "CREATED",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
             {
-              "name": "200 OK",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/auth/login",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "description": "Authenticates and stores the token in the 'analyst_token' environment variable. Run this before the other requests.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"username\": \"rana.analyst\",\n  \"password\": \"Analyst#2026\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"Login successful\",\n  \"status\": \"success\",\n  \"token\": \"30615f2d924f4968b63c5c63608623bd\",\n  \"user\": {\n    \"full_name\": \"Rana Khoury\",\n    \"role\": \"Security Analyst\",\n    \"user_id\": 2,\n    \"username\": \"rana.analyst\"\n  }\n}"
-            }
-          ]
-        },
-        {
-          "name": "Login as Regular Employee",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    pm.environment.set(\"employee_token\", pm.response.json().token);",
-                  "}"
-                ]
-              }
+              "key": "Content-Type",
+              "value": "application/json"
             }
           ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/auth/login",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
-            "description": "Authenticates and stores the token in the 'employee_token' environment variable. Run this before the other requests.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"lina.employee\",\n  \"password\": \"Employee#2026\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/auth/login",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "description": "Authenticates and stores the token in the 'employee_token' environment variable. Run this before the other requests.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"username\": \"lina.employee\",\n  \"password\": \"Employee#2026\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"Login successful\",\n  \"status\": \"success\",\n  \"token\": \"5358904791794b299092d50895404b2e\",\n  \"user\": {\n    \"full_name\": \"Lina Haddad\",\n    \"role\": \"Regular Employee\",\n    \"user_id\": 4,\n    \"username\": \"lina.employee\"\n  }\n}"
-            }
-          ]
-        },
-        {
-          "name": "Login as Auditor",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    pm.environment.set(\"auditor_token\", pm.response.json().token);",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/auth/login",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
-            "description": "Authenticates and stores the token in the 'auditor_token' environment variable. Run this before the other requests.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"samir.auditor\",\n  \"password\": \"Auditor#2026\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/auth/login",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "description": "Authenticates and stores the token in the 'auditor_token' environment variable. Run this before the other requests.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"username\": \"samir.auditor\",\n  \"password\": \"Auditor#2026\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"Login successful\",\n  \"status\": \"success\",\n  \"token\": \"bedc1ae5489c486d8a9243e472533f1b\",\n  \"user\": {\n    \"full_name\": \"Samir Fares\",\n    \"role\": \"Auditor\",\n    \"user_id\": 5,\n    \"username\": \"samir.auditor\"\n  }\n}"
-            }
-          ]
+          "cookie": [],
+          "body": "{\n  \"incident\": {\n    \"asset_id\": 1,\n    \"assigned_analyst_id\": null,\n    \"category\": \"Malware Infection\",\n    \"creation_date\": \"2026-10-19T14:04:57.849326+00:00\",\n    \"description\": \"Encryption activity flagged on the domain controller.\",\n    \"incident_id\": 2,\n    \"reporter_id\": 1,\n    \"resolution_date\": null,\n    \"severity\": \"Critical\",\n    \"status\": \"Open\",\n    \"title\": \"Ransomware detected on domain controller\"\n  },\n  \"message\": \"Incident created successfully\",\n  \"status\": \"success\"\n}"
         }
       ]
     },
     {
-      "name": "Service 3 - Incident Management",
-      "item": [
-        {
-          "name": "1. Create Incident",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/incidents",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "incidents"
-              ]
-            },
-            "description": "Reports a new cybersecurity incident. Allowed for the Security Administrator and the Regular Employee. A new incident always starts at status 'Open'.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"Ransomware detected on domain controller\",\n  \"description\": \"Endpoint protection flagged file encryption activity on the primary domain controller.\",\n  \"category\": \"Malware Infection\",\n  \"severity\": \"Critical\",\n  \"affected_asset\": 1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [
-            {
-              "name": "201 CREATED",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{admin_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents"
-                  ]
-                },
-                "description": "Reports a new cybersecurity incident. Allowed for the Security Administrator and the Regular Employee. A new incident always starts at status 'Open'.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"title\": \"Ransomware detected on domain controller\",\n  \"description\": \"Endpoint protection flagged file encryption activity on the primary domain controller.\",\n  \"category\": \"Malware Infection\",\n  \"severity\": \"Critical\",\n  \"affected_asset\": 1\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "CREATED",
-              "code": 201,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"incident\": {\n    \"affected_asset_name\": \"Primary Domain Controller\",\n    \"asset_id\": 1,\n    \"assigned_analyst_id\": null,\n    \"assigned_analyst_name\": null,\n    \"category\": \"Malware Infection\",\n    \"creation_date\": \"2026-10-18T17:34:51\",\n    \"description\": \"Endpoint protection flagged file encryption activity on the primary domain controller.\",\n    \"incident_id\": 1,\n    \"reporter_id\": 1,\n    \"reporter_name\": \"Karim Hajj Ali\",\n    \"resolution_date\": null,\n    \"severity\": \"Critical\",\n    \"status\": \"Open\",\n    \"title\": \"Ransomware detected on domain controller\"\n  },\n  \"message\": \"Incident created successfully\",\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "201 Created (reported by an employee)",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{employee_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents"
-                  ]
-                },
-                "description": "Reports a new cybersecurity incident. Allowed for the Security Administrator and the Regular Employee. A new incident always starts at status 'Open'.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"title\": \"Suspicious email requesting credentials\",\n  \"description\": \"Received an email impersonating the IT helpdesk and asking for my password.\",\n  \"category\": \"Phishing Attack\",\n  \"severity\": \"Medium\",\n  \"affected_asset\": 3\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "CREATED",
-              "code": 201,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"incident\": {\n    \"affected_asset_name\": \"HR Workstation 14\",\n    \"asset_id\": 3,\n    \"assigned_analyst_id\": null,\n    \"assigned_analyst_name\": null,\n    \"category\": \"Phishing Attack\",\n    \"creation_date\": \"2026-10-18T17:34:51\",\n    \"description\": \"Received an email impersonating the IT helpdesk and asking for my password.\",\n    \"incident_id\": 2,\n    \"reporter_id\": 4,\n    \"reporter_name\": \"Lina Haddad\",\n    \"resolution_date\": null,\n    \"severity\": \"Medium\",\n    \"status\": \"Open\",\n    \"title\": \"Suspicious email requesting credentials\"\n  },\n  \"message\": \"Incident created successfully\",\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "400 Bad Request (invalid severity)",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{admin_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents"
-                  ]
-                },
-                "description": "Reports a new cybersecurity incident. Allowed for the Security Administrator and the Regular Employee. A new incident always starts at status 'Open'.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"title\": \"Test incident\",\n  \"description\": \"Test\",\n  \"category\": \"Unauthorized Access\",\n  \"severity\": \"Catastrophic\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "BAD REQUEST",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"'severity' must be one of: Low, Medium, High, Critical\",\n  \"status\": \"error\"\n}"
-            },
-            {
-              "name": "400 Bad Request (missing title)",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{admin_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents"
-                  ]
-                },
-                "description": "Reports a new cybersecurity incident. Allowed for the Security Administrator and the Regular Employee. A new incident always starts at status 'Open'.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"description\": \"No title supplied\",\n  \"category\": \"Data Leakage\",\n  \"severity\": \"Low\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "BAD REQUEST",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"'title' is required\",\n  \"status\": \"error\"\n}"
-            },
-            {
-              "name": "403 Forbidden (analyst may not create)",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents"
-                  ]
-                },
-                "description": "Reports a new cybersecurity incident. Allowed for the Security Administrator and the Regular Employee. A new incident always starts at status 'Open'.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"title\": \"Test\",\n  \"description\": \"Test\",\n  \"category\": \"Test\",\n  \"severity\": \"Low\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "FORBIDDEN",
-              "code": 403,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"User does not have permission to perform this operation\",\n  \"status\": \"error\"\n}"
-            }
+      "name": "2. Retrieve All Incidents",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents"
           ]
         },
+        "description": "Complete list. Administrator or Auditor. This is the shape Chris's Reports consumes: body.incidents with a success status and count."
+      },
+      "response": [
         {
-          "name": "2. Retrieve All Incidents",
-          "request": {
+          "name": "200 OK",
+          "originalRequest": {
             "method": "GET",
             "header": [
               {
@@ -696,149 +122,56 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/incidents",
+              "raw": "{{incidents_url}}/incidents",
               "host": [
-                "{{base_url}}"
+                "{{incidents_url}}"
               ],
               "path": [
                 "incidents"
               ]
             },
-            "description": "Returns every incident with its status and assigned analyst. Allowed for the Security Administrator and the Auditor."
+            "description": "Complete list. Administrator or Auditor. This is the shape Chris's Reports consumes: body.incidents with a success status and count."
           },
-          "response": [
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
             {
-              "name": "200 OK",
-              "originalRequest": {
-                "method": "GET",
-                "header": [
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{admin_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents"
-                  ]
-                },
-                "description": "Returns every incident with its status and assigned analyst. Allowed for the Security Administrator and the Auditor."
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"count\": 2,\n  \"count_by_status\": {\n    \"Open\": 2\n  },\n  \"incidents\": [\n    {\n      \"affected_asset_name\": \"HR Workstation 14\",\n      \"asset_id\": 3,\n      \"assigned_analyst_id\": null,\n      \"assigned_analyst_name\": null,\n      \"category\": \"Phishing Attack\",\n      \"creation_date\": \"2026-10-18T17:34:51\",\n      \"description\": \"Received an email impersonating the IT helpdesk and asking for my password.\",\n      \"incident_id\": 2,\n      \"reporter_id\": 4,\n      \"reporter_name\": \"Lina Haddad\",\n      \"resolution_date\": null,\n      \"severity\": \"Medium\",\n      \"status\": \"Open\",\n      \"title\": \"Suspicious email requesting credentials\"\n    },\n    {\n      \"affected_asset_name\": \"Primary Domain Controller\",\n      \"asset_id\": 1,\n      \"assigned_analyst_id\": null,\n      \"assigned_analyst_name\": null,\n      \"category\": \"Malware Infection\",\n      \"creation_date\": \"2026-10-18T17:34:51\",\n      \"description\": \"Endpoint protection flagged file encryption activity on the primary domain controller.\",\n      \"incident_id\": 1,\n      \"reporter_id\": 1,\n      \"reporter_name\": \"Karim Hajj Ali\",\n      \"resolution_date\": null,\n      \"severity\": \"Critical\",\n      \"status\": \"Open\",\n      \"title\": \"Ransomware detected on domain controller\"\n    }\n  ],\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "200 OK (auditor)",
-              "originalRequest": {
-                "method": "GET",
-                "header": [
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{auditor_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents"
-                  ]
-                },
-                "description": "Returns every incident with its status and assigned analyst. Allowed for the Security Administrator and the Auditor."
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"count\": 2,\n  \"count_by_status\": {\n    \"Open\": 2\n  },\n  \"incidents\": [\n    {\n      \"affected_asset_name\": \"HR Workstation 14\",\n      \"asset_id\": 3,\n      \"assigned_analyst_id\": null,\n      \"assigned_analyst_name\": null,\n      \"category\": \"Phishing Attack\",\n      \"creation_date\": \"2026-10-18T17:34:51\",\n      \"description\": \"Received an email impersonating the IT helpdesk and asking for my password.\",\n      \"incident_id\": 2,\n      \"reporter_id\": 4,\n      \"reporter_name\": \"Lina Haddad\",\n      \"resolution_date\": null,\n      \"severity\": \"Medium\",\n      \"status\": \"Open\",\n      \"title\": \"Suspicious email requesting credentials\"\n    },\n    {\n      \"affected_asset_name\": \"Primary Domain Controller\",\n      \"asset_id\": 1,\n      \"assigned_analyst_id\": null,\n      \"assigned_analyst_name\": null,\n      \"category\": \"Malware Infection\",\n      \"creation_date\": \"2026-10-18T17:34:51\",\n      \"description\": \"Endpoint protection flagged file encryption activity on the primary domain controller.\",\n      \"incident_id\": 1,\n      \"reporter_id\": 1,\n      \"reporter_name\": \"Karim Hajj Ali\",\n      \"resolution_date\": null,\n      \"severity\": \"Critical\",\n      \"status\": \"Open\",\n      \"title\": \"Ransomware detected on domain controller\"\n    }\n  ],\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "403 Forbidden (employee)",
-              "originalRequest": {
-                "method": "GET",
-                "header": [
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{employee_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents"
-                  ]
-                },
-                "description": "Returns every incident with its status and assigned analyst. Allowed for the Security Administrator and the Auditor."
-              },
-              "status": "FORBIDDEN",
-              "code": 403,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"User does not have permission to perform this operation\",\n  \"status\": \"error\"\n}"
-            },
-            {
-              "name": "401 Unauthorized (no token)",
-              "originalRequest": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{base_url}}/incidents",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents"
-                  ]
-                },
-                "description": "Returns every incident with its status and assigned analyst. Allowed for the Security Administrator and the Auditor."
-              },
-              "status": "UNAUTHORIZED",
-              "code": 401,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"Authentication required. Send your token as 'Authorization: Bearer <token>'.\",\n  \"status\": \"error\"\n}"
+              "key": "Content-Type",
+              "value": "application/json"
             }
+          ],
+          "cookie": [],
+          "body": "{\n  \"count\": 2,\n  \"count_by_status\": {\n    \"Open\": 2\n  },\n  \"incidents\": [\n    {\n      \"asset_id\": 1,\n      \"assigned_analyst_id\": null,\n      \"category\": \"Malware Infection\",\n      \"creation_date\": \"2026-10-19T14:04:57.849326+00:00\",\n      \"description\": \"Encryption activity flagged on the domain controller.\",\n      \"incident_id\": 2,\n      \"reporter_id\": 1,\n      \"resolution_date\": null,\n      \"severity\": \"Critical\",\n      \"status\": \"Open\",\n      \"title\": \"Ransomware detected on domain controller\"\n    },\n    {\n      \"asset_id\": 1,\n      \"assigned_analyst_id\": null,\n      \"category\": \"Malware Infection\",\n      \"creation_date\": \"2026-10-19T14:04:57.667199+00:00\",\n      \"description\": \"Encryption activity flagged.\",\n      \"incident_id\": 1,\n      \"reporter_id\": 1,\n      \"resolution_date\": null,\n      \"severity\": \"Critical\",\n      \"status\": \"Open\",\n      \"title\": \"Ransomware detected on domain controller\"\n    }\n  ],\n  \"status\": \"success\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "3. Retrieve Specific Incident",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents/1",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents",
+            "1"
           ]
         },
+        "description": "One incident with its investigation notes. An employee may only read an incident they reported."
+      },
+      "response": [
         {
-          "name": "3. Retrieve Specific Incident",
-          "request": {
+          "name": "200 OK",
+          "originalRequest": {
             "method": "GET",
             "header": [
               {
@@ -847,159 +180,71 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/incidents/1",
+              "raw": "{{incidents_url}}/incidents/1",
               "host": [
-                "{{base_url}}"
+                "{{incidents_url}}"
               ],
               "path": [
                 "incidents",
                 "1"
               ]
             },
-            "description": "Returns one incident together with all of its investigation notes. A Regular Employee may only read incidents they reported themselves."
+            "description": "One incident with its investigation notes. An employee may only read an incident they reported."
           },
-          "response": [
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
             {
-              "name": "200 OK",
-              "originalRequest": {
-                "method": "GET",
-                "header": [
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{admin_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1"
-                  ]
-                },
-                "description": "Returns one incident together with all of its investigation notes. A Regular Employee may only read incidents they reported themselves."
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"incident\": {\n    \"affected_asset_name\": \"Primary Domain Controller\",\n    \"asset_id\": 1,\n    \"assigned_analyst_id\": null,\n    \"assigned_analyst_name\": null,\n    \"category\": \"Malware Infection\",\n    \"creation_date\": \"2026-10-18T17:34:51\",\n    \"description\": \"Endpoint protection flagged file encryption activity on the primary domain controller.\",\n    \"incident_id\": 1,\n    \"investigation_notes\": [],\n    \"reporter_id\": 1,\n    \"reporter_name\": \"Karim Hajj Ali\",\n    \"resolution_date\": null,\n    \"severity\": \"Critical\",\n    \"status\": \"Open\",\n    \"title\": \"Ransomware detected on domain controller\"\n  },\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "404 Not Found (unknown id)",
-              "originalRequest": {
-                "method": "GET",
-                "header": [
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{admin_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/9999",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "9999"
-                  ]
-                },
-                "description": "Returns one incident together with all of its investigation notes. A Regular Employee may only read incidents they reported themselves."
-              },
-              "status": "NOT FOUND",
-              "code": 404,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"No incident with id 9999 exists\",\n  \"status\": \"error\"\n}"
-            },
-            {
-              "name": "200 OK (employee reading their own report)",
-              "originalRequest": {
-                "method": "GET",
-                "header": [
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{employee_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/2",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "2"
-                  ]
-                },
-                "description": "Returns one incident together with all of its investigation notes. A Regular Employee may only read incidents they reported themselves."
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"incident\": {\n    \"affected_asset_name\": \"HR Workstation 14\",\n    \"asset_id\": 3,\n    \"assigned_analyst_id\": null,\n    \"assigned_analyst_name\": null,\n    \"category\": \"Phishing Attack\",\n    \"creation_date\": \"2026-10-18T17:34:51\",\n    \"description\": \"Received an email impersonating the IT helpdesk and asking for my password.\",\n    \"incident_id\": 2,\n    \"investigation_notes\": [],\n    \"reporter_id\": 4,\n    \"reporter_name\": \"Lina Haddad\",\n    \"resolution_date\": null,\n    \"severity\": \"Medium\",\n    \"status\": \"Open\",\n    \"title\": \"Suspicious email requesting credentials\"\n  },\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "403 Forbidden (employee reading another report)",
-              "originalRequest": {
-                "method": "GET",
-                "header": [
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{employee_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1"
-                  ]
-                },
-                "description": "Returns one incident together with all of its investigation notes. A Regular Employee may only read incidents they reported themselves."
-              },
-              "status": "FORBIDDEN",
-              "code": 403,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"User does not have permission to perform this operation\",\n  \"status\": \"error\"\n}"
+              "key": "Content-Type",
+              "value": "application/json"
             }
+          ],
+          "cookie": [],
+          "body": "{\n  \"incident\": {\n    \"asset_id\": 1,\n    \"assigned_analyst_id\": null,\n    \"category\": \"Malware Infection\",\n    \"creation_date\": \"2026-10-19T14:04:57.667199+00:00\",\n    \"description\": \"Encryption activity flagged.\",\n    \"incident_id\": 1,\n    \"investigation_notes\": [],\n    \"reporter_id\": 1,\n    \"resolution_date\": null,\n    \"severity\": \"Critical\",\n    \"status\": \"Open\",\n    \"title\": \"Ransomware detected on domain controller\"\n  },\n  \"status\": \"success\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "4. Assign Incident to Analyst",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents/1/assign",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents",
+            "1",
+            "assign"
           ]
         },
+        "description": "Administrator only. The target's role is checked against Users over HTTP, so a demoted account is refused. Queues an Incident Assignment notification.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"analyst_id\": 2\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
         {
-          "name": "4. Assign Incident to Analyst",
-          "request": {
+          "name": "200 OK",
+          "originalRequest": {
             "method": "PUT",
             "header": [
               {
@@ -1012,9 +257,9 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/incidents/1/assign",
+              "raw": "{{incidents_url}}/incidents/1/assign",
               "host": [
-                "{{base_url}}"
+                "{{incidents_url}}"
               ],
               "path": [
                 "incidents",
@@ -1022,7 +267,7 @@
                 "assign"
               ]
             },
-            "description": "Assigns an incident to a Security Analyst. Verifies the incident exists and that the target user really holds the Security Analyst role, writes the assignment to the audit log, and raises an 'Incident Assignment' notification in Service 8.",
+            "description": "Administrator only. The target's role is checked against Users over HTTP, so a demoted account is refused. Queues an Incident Assignment notification.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"analyst_id\": 2\n}",
@@ -1033,291 +278,60 @@
               }
             }
           },
-          "response": [
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
             {
-              "name": "200 OK",
-              "originalRequest": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{admin_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/assign",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "assign"
-                  ]
-                },
-                "description": "Assigns an incident to a Security Analyst. Verifies the incident exists and that the target user really holds the Security Analyst role, writes the assignment to the audit log, and raises an 'Incident Assignment' notification in Service 8.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"analyst_id\": 2\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"incident\": {\n    \"affected_asset_name\": \"Primary Domain Controller\",\n    \"asset_id\": 1,\n    \"assigned_analyst_id\": 2,\n    \"assigned_analyst_name\": \"Rana Khoury\",\n    \"category\": \"Malware Infection\",\n    \"creation_date\": \"2026-10-18T17:34:51\",\n    \"description\": \"Endpoint protection flagged file encryption activity on the primary domain controller.\",\n    \"incident_id\": 1,\n    \"reporter_id\": 1,\n    \"reporter_name\": \"Karim Hajj Ali\",\n    \"resolution_date\": null,\n    \"severity\": \"Critical\",\n    \"status\": \"Open\",\n    \"title\": \"Ransomware detected on domain controller\"\n  },\n  \"message\": \"Incident assigned successfully\",\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "400 Bad Request (target is not an analyst)",
-              "originalRequest": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{admin_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/assign",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "assign"
-                  ]
-                },
-                "description": "Assigns an incident to a Security Analyst. Verifies the incident exists and that the target user really holds the Security Analyst role, writes the assignment to the audit log, and raises an 'Incident Assignment' notification in Service 8.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"analyst_id\": 4\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "BAD REQUEST",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"User 4 is not a Security Analyst, so this incident cannot be assigned to them\",\n  \"status\": \"error\"\n}"
-            },
-            {
-              "name": "404 Not Found (unknown user)",
-              "originalRequest": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{admin_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/assign",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "assign"
-                  ]
-                },
-                "description": "Assigns an incident to a Security Analyst. Verifies the incident exists and that the target user really holds the Security Analyst role, writes the assignment to the audit log, and raises an 'Incident Assignment' notification in Service 8.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"analyst_id\": 9999\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "NOT FOUND",
-              "code": 404,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"No user with id 9999 exists\",\n  \"status\": \"error\"\n}"
-            },
-            {
-              "name": "403 Forbidden (analyst may not assign)",
-              "originalRequest": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/assign",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "assign"
-                  ]
-                },
-                "description": "Assigns an incident to a Security Analyst. Verifies the incident exists and that the target user really holds the Security Analyst role, writes the assignment to the audit log, and raises an 'Incident Assignment' notification in Service 8.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"analyst_id\": 3\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "FORBIDDEN",
-              "code": 403,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"User does not have permission to perform this operation\",\n  \"status\": \"error\"\n}"
+              "key": "Content-Type",
+              "value": "application/json"
             }
-          ]
-        },
-        {
-          "name": "5a. Update Status - rejected shortcut",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{analyst_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/incidents/1/status",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "incidents",
-                "1",
-                "status"
-              ]
-            },
-            "description": "Demonstrates the lifecycle rule. An incident at 'Open' cannot jump straight to 'Closed'; the response names the only status that would have been accepted.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"Closed\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"incident\": {\n    \"asset_id\": 1,\n    \"assigned_analyst_id\": 2,\n    \"category\": \"Malware Infection\",\n    \"creation_date\": \"2026-10-19T14:04:57.667199+00:00\",\n    \"description\": \"Encryption activity flagged.\",\n    \"incident_id\": 1,\n    \"reporter_id\": 1,\n    \"resolution_date\": null,\n    \"severity\": \"Critical\",\n    \"status\": \"Open\",\n    \"title\": \"Ransomware detected on domain controller\"\n  },\n  \"message\": \"Incident assigned successfully\",\n  \"status\": \"success\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "5. Update Incident Status",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
           },
-          "response": [
-            {
-              "name": "400 BAD REQUEST",
-              "originalRequest": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/status",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "status"
-                  ]
-                },
-                "description": "Demonstrates the lifecycle rule. An incident at 'Open' cannot jump straight to 'Closed'; the response names the only status that would have been accepted.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"status\": \"Closed\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "BAD REQUEST",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"Invalid status transition: 'Open' -> 'Closed'. From 'Open' the only allowed next status is 'Under Investigation'.\",\n  \"status\": \"error\"\n}"
-            }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{analyst_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents/1/status",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents",
+            "1",
+            "status"
           ]
         },
+        "description": "One step along Open -> Under Investigation -> Mitigated -> Resolved -> Closed. Skipping a step is refused with 400 naming the only allowed next status.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Under Investigation\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
         {
-          "name": "5b. Update Status - Open to Under Investigation",
-          "request": {
+          "name": "200 OK",
+          "originalRequest": {
             "method": "PUT",
             "header": [
               {
@@ -1330,9 +344,9 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/incidents/1/status",
+              "raw": "{{incidents_url}}/incidents/1/status",
               "host": [
-                "{{base_url}}"
+                "{{incidents_url}}"
               ],
               "path": [
                 "incidents",
@@ -1340,7 +354,7 @@
                 "status"
               ]
             },
-            "description": "First legal step of the lifecycle Open -> Under Investigation -> Mitigated -> Resolved -> Closed.",
+            "description": "One step along Open -> Under Investigation -> Mitigated -> Resolved -> Closed. Skipping a step is refused with 400 naming the only allowed next status.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"Under Investigation\"\n}",
@@ -1351,252 +365,60 @@
               }
             }
           },
-          "response": [
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
             {
-              "name": "200 OK",
-              "originalRequest": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/status",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "status"
-                  ]
-                },
-                "description": "First legal step of the lifecycle Open -> Under Investigation -> Mitigated -> Resolved -> Closed.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"status\": \"Under Investigation\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"incident\": {\n    \"affected_asset_name\": \"Primary Domain Controller\",\n    \"asset_id\": 1,\n    \"assigned_analyst_id\": 2,\n    \"assigned_analyst_name\": \"Rana Khoury\",\n    \"category\": \"Malware Infection\",\n    \"creation_date\": \"2026-10-18T17:34:51\",\n    \"description\": \"Endpoint protection flagged file encryption activity on the primary domain controller.\",\n    \"incident_id\": 1,\n    \"reporter_id\": 1,\n    \"reporter_name\": \"Karim Hajj Ali\",\n    \"resolution_date\": null,\n    \"severity\": \"Critical\",\n    \"status\": \"Under Investigation\",\n    \"title\": \"Ransomware detected on domain controller\"\n  },\n  \"message\": \"Incident status updated from 'Open' to 'Under Investigation'\",\n  \"next_allowed_status\": \"Mitigated\",\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "200 OK (-> Mitigated)",
-              "originalRequest": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/status",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "status"
-                  ]
-                },
-                "description": "First legal step of the lifecycle Open -> Under Investigation -> Mitigated -> Resolved -> Closed.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"status\": \"Mitigated\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"incident\": {\n    \"affected_asset_name\": \"Primary Domain Controller\",\n    \"asset_id\": 1,\n    \"assigned_analyst_id\": 2,\n    \"assigned_analyst_name\": \"Rana Khoury\",\n    \"category\": \"Malware Infection\",\n    \"creation_date\": \"2026-10-18T17:34:51\",\n    \"description\": \"Endpoint protection flagged file encryption activity on the primary domain controller.\",\n    \"incident_id\": 1,\n    \"reporter_id\": 1,\n    \"reporter_name\": \"Karim Hajj Ali\",\n    \"resolution_date\": null,\n    \"severity\": \"Critical\",\n    \"status\": \"Mitigated\",\n    \"title\": \"Ransomware detected on domain controller\"\n  },\n  \"message\": \"Incident status updated from 'Under Investigation' to 'Mitigated'\",\n  \"next_allowed_status\": \"Resolved\",\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "200 OK (-> Resolved, stamps resolution date)",
-              "originalRequest": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/status",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "status"
-                  ]
-                },
-                "description": "First legal step of the lifecycle Open -> Under Investigation -> Mitigated -> Resolved -> Closed.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"status\": \"Resolved\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"incident\": {\n    \"affected_asset_name\": \"Primary Domain Controller\",\n    \"asset_id\": 1,\n    \"assigned_analyst_id\": 2,\n    \"assigned_analyst_name\": \"Rana Khoury\",\n    \"category\": \"Malware Infection\",\n    \"creation_date\": \"2026-10-18T17:34:51\",\n    \"description\": \"Endpoint protection flagged file encryption activity on the primary domain controller.\",\n    \"incident_id\": 1,\n    \"reporter_id\": 1,\n    \"reporter_name\": \"Karim Hajj Ali\",\n    \"resolution_date\": \"2026-10-18T17:34:52\",\n    \"severity\": \"Critical\",\n    \"status\": \"Resolved\",\n    \"title\": \"Ransomware detected on domain controller\"\n  },\n  \"message\": \"Incident status updated from 'Mitigated' to 'Resolved'\",\n  \"next_allowed_status\": \"Closed\",\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "200 OK (-> Closed)",
-              "originalRequest": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/status",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "status"
-                  ]
-                },
-                "description": "First legal step of the lifecycle Open -> Under Investigation -> Mitigated -> Resolved -> Closed.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"status\": \"Closed\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"incident\": {\n    \"affected_asset_name\": \"Primary Domain Controller\",\n    \"asset_id\": 1,\n    \"assigned_analyst_id\": 2,\n    \"assigned_analyst_name\": \"Rana Khoury\",\n    \"category\": \"Malware Infection\",\n    \"creation_date\": \"2026-10-18T17:34:51\",\n    \"description\": \"Endpoint protection flagged file encryption activity on the primary domain controller.\",\n    \"incident_id\": 1,\n    \"reporter_id\": 1,\n    \"reporter_name\": \"Karim Hajj Ali\",\n    \"resolution_date\": \"2026-10-18T17:34:52\",\n    \"severity\": \"Critical\",\n    \"status\": \"Closed\",\n    \"title\": \"Ransomware detected on domain controller\"\n  },\n  \"message\": \"Incident status updated from 'Resolved' to 'Closed'\",\n  \"next_allowed_status\": null,\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "400 Bad Request (closed incident, no further changes)",
-              "originalRequest": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/status",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "status"
-                  ]
-                },
-                "description": "First legal step of the lifecycle Open -> Under Investigation -> Mitigated -> Resolved -> Closed.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"status\": \"Open\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "BAD REQUEST",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"This incident is 'Closed', which is the end of the lifecycle. No further status changes are allowed.\",\n  \"status\": \"error\"\n}"
+              "key": "Content-Type",
+              "value": "application/json"
             }
+          ],
+          "cookie": [],
+          "body": "{\n  \"incident\": {\n    \"asset_id\": 1,\n    \"assigned_analyst_id\": 2,\n    \"category\": \"Malware Infection\",\n    \"creation_date\": \"2026-10-19T14:04:57.667199+00:00\",\n    \"description\": \"Encryption activity flagged.\",\n    \"incident_id\": 1,\n    \"reporter_id\": 1,\n    \"resolution_date\": null,\n    \"severity\": \"Critical\",\n    \"status\": \"Under Investigation\",\n    \"title\": \"Ransomware detected on domain controller\"\n  },\n  \"message\": \"Incident status updated from 'Open' to 'Under Investigation'\",\n  \"next_allowed_status\": \"Mitigated\",\n  \"status\": \"success\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "6. Add Investigation Note",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{analyst_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents/1/notes",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents",
+            "1",
+            "notes"
           ]
         },
+        "description": "Administrator or Analyst. Returned as part of GET /incidents/{id}.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"note_content\": \"Isolated the host and captured a memory image.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
         {
-          "name": "6. Add Investigation Note",
-          "request": {
+          "name": "201 CREATED",
+          "originalRequest": {
             "method": "POST",
             "header": [
               {
@@ -1609,9 +431,9 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/incidents/1/notes",
+              "raw": "{{incidents_url}}/incidents/1/notes",
               "host": [
-                "{{base_url}}"
+                "{{incidents_url}}"
               ],
               "path": [
                 "incidents",
@@ -1619,10 +441,10 @@
                 "notes"
               ]
             },
-            "description": "Adds an investigation note to an incident. The note records which analyst wrote it and when, and is returned as part of GET /incidents/{id}.",
+            "description": "Administrator or Analyst. Returned as part of GET /incidents/{id}.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"note_content\": \"Isolated the host from the network and captured a memory image for analysis.\"\n}",
+              "raw": "{\n  \"note_content\": \"Isolated the host and captured a memory image.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1630,209 +452,66 @@
               }
             }
           },
-          "response": [
+          "status": "CREATED",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
             {
-              "name": "201 CREATED",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/notes",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "notes"
-                  ]
-                },
-                "description": "Adds an investigation note to an incident. The note records which analyst wrote it and when, and is returned as part of GET /incidents/{id}.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"note_content\": \"Isolated the host from the network and captured a memory image for analysis.\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "CREATED",
-              "code": 201,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"Investigation note added successfully\",\n  \"note\": {\n    \"analyst_id\": 2,\n    \"analyst_name\": \"Rana Khoury\",\n    \"creation_timestamp\": \"2026-10-18T17:34:52\",\n    \"incident_id\": 1,\n    \"note_content\": \"Isolated the host from the network and captured a memory image for analysis.\",\n    \"note_id\": 1\n  },\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "201 Created (second note)",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/notes",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "notes"
-                  ]
-                },
-                "description": "Adds an investigation note to an incident. The note records which analyst wrote it and when, and is returned as part of GET /incidents/{id}.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"note_content\": \"Confirmed the encryption routine matches a known ransomware family.\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "CREATED",
-              "code": 201,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"Investigation note added successfully\",\n  \"note\": {\n    \"analyst_id\": 2,\n    \"analyst_name\": \"Rana Khoury\",\n    \"creation_timestamp\": \"2026-10-18T17:34:52\",\n    \"incident_id\": 1,\n    \"note_content\": \"Confirmed the encryption routine matches a known ransomware family.\",\n    \"note_id\": 2\n  },\n  \"status\": \"success\"\n}"
-            },
-            {
-              "name": "400 Bad Request (empty note)",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/1/notes",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "1",
-                    "notes"
-                  ]
-                },
-                "description": "Adds an investigation note to an incident. The note records which analyst wrote it and when, and is returned as part of GET /incidents/{id}.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"note_content\": \"   \"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "BAD REQUEST",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"'note_content' must be a non-empty string\",\n  \"status\": \"error\"\n}"
-            },
-            {
-              "name": "404 Not Found (unknown incident)",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{analyst_token}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/incidents/9999/notes",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "incidents",
-                    "9999",
-                    "notes"
-                  ]
-                },
-                "description": "Adds an investigation note to an incident. The note records which analyst wrote it and when, and is returned as part of GET /incidents/{id}.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"note_content\": \"orphan note\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "status": "NOT FOUND",
-              "code": 404,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"message\": \"No incident with id 9999 exists\",\n  \"status\": \"error\"\n}"
+              "key": "Content-Type",
+              "value": "application/json"
             }
-          ]
+          ],
+          "cookie": [],
+          "body": "{\n  \"message\": \"Investigation note added successfully\",\n  \"note\": {\n    \"analyst_id\": 2,\n    \"creation_timestamp\": \"2026-10-19T14:04:58.096557+00:00\",\n    \"incident_id\": 1,\n    \"note_content\": \"Isolated the host and captured a memory image.\",\n    \"note_id\": 1\n  },\n  \"status\": \"success\"\n}"
         }
       ]
-    }
-  ],
-  "variable": [
+    },
     {
-      "key": "base_url",
-      "value": "http://127.0.0.1:5000",
-      "type": "string"
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{incidents_url}}/health",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Readiness of this service, including whether its own tables can be queried."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{incidents_url}}/health",
+              "host": [
+                "{{incidents_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Readiness of this service, including whether its own tables can be queried."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"service\": \"incidents\",\n  \"status\": \"ok\"\n}"
+        }
+      ]
     }
   ]
 }

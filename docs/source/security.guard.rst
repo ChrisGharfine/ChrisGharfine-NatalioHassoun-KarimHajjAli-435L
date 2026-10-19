@@ -1,7 +1,7 @@
-test\_services module
+security.guard module
 =====================
 
-.. automodule:: test_services
+.. automodule:: security.guard
    :members:
    :show-inheritance:
    :undoc-members:

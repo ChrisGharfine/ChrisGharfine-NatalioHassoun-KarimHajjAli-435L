@@ -1,156 +1,187 @@
 """Database layer for Service 8 -- Notification and Alert Management.
 
-All SQL for the ``notifications`` table lives here. The API layer calls these
-functions and never writes SQL itself, which keeps the routes readable and
-means the queries can be tested without starting Flask.
+Ported to PostgreSQL for team-integration-v1.0.0, and extended with the
+idempotency receipts section 7 requires.
 
-Every value that comes from a request is bound as a ``?`` parameter, so there
-is no way for user input to be read as SQL.
+The Sprint I ``send_notification()`` helper is deliberately **gone**.
+Section 7 says the trigger owner "delivers it using its own service key
+over HTTP" and that ``services.notifications_db`` must not be imported from
+another service. Incidents and Vulnerabilities now queue work in
+:mod:`outbox.notification_outbox` instead.
 
 :author: Karim Hajj Ali
 """
 
-from datetime import datetime
+import hashlib
+import json
 
-from database import connect_to_db, row_to_dict, rows_to_list
-from models import Notification
+import db
+from serialization import jsonify_row, jsonify_rows, utc_now
+
+_NOTIFICATION_COLUMNS = """
+    notification_id, user_id, title, message, notification_type,
+    severity_level, status, creation_date, read_date
+"""
 
 
-def send_notification(user_id, title, message, notification_type, severity):
-    """Build, validate and store a notification in one step.
+def payload_digest(payload):
+    """Return a stable digest of an internal-delivery payload.
 
-    This is the entry point the other two services use when something they
-    did should alert a user -- an incident being assigned, or a serious
-    vulnerability being logged against an asset. Going through the
-    :class:`models.Notification` class rather than inserting directly means
-    an automatically generated notification is held to exactly the same
-    validation rules as one posted by an administrator.
+    Used to tell an identical retry from a different payload reusing the
+    same idempotency key, which section 7 answers with ``409``.
 
-    It deliberately swallows failures: a notification that cannot be
-    delivered must not roll back the incident assignment that caused it.
+    :param payload: The delivery payload.
+    :type payload: dict
+    :return: Hex SHA-256 digest.
+    :rtype: str
+    """
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
-    :param user_id: ``user_id`` of the recipient.
-    :type user_id: int
-    :param title: Short headline.
-    :type title: str
-    :param message: Body text.
-    :type message: str
-    :param notification_type: One of :data:`constants.NOTIFICATION_TYPES`.
-    :type notification_type: str
-    :param severity: One of :data:`constants.SEVERITIES`.
-    :type severity: str
-    :return: The stored notification, or ``None`` if it could not be stored.
+
+# ---------------------------------------------------------------------------
+# Receipts
+# ---------------------------------------------------------------------------
+
+def get_receipt(event_id):
+    """Fetch the receipt for an idempotency key, if one exists.
+
+    :param event_id: The ``Idempotency-Key`` UUID.
+    :type event_id: str
+    :return: The receipt row, or ``None``.
     :rtype: dict or NoneType
     """
-    try:
-        notification = Notification(
-            user_id, title, message, notification_type, severity)
-        notification.validate()
-        return insert_notification(notification.to_row()) or None
-    except Exception as error:
-        print("Could not generate notification: %s" % error)
-        return None
+    return db.query_one(
+        "SELECT event_id, source_service, payload_digest, notification_id "
+        "FROM karim_notification_receipts WHERE event_id = %s", (event_id,))
 
 
-def insert_notification(row):
-    """Insert one notification and return it as stored.
+def create_notification_with_receipt(event_id, source_service, digest, row):
+    """Create a notification, its receipt and its audit event atomically.
 
-    :param row: Column values, as produced by
-        :meth:`models.Notification.to_row`.
+    Section 7 requires all three to happen in one transaction so a retry
+    can never find a notification without a receipt, or the other way
+    round.
+
+    :param event_id: The idempotency key for this delivery.
+    :type event_id: str
+    :param source_service: The authenticated calling service.
+    :type source_service: str
+    :param digest: Digest of the payload, stored on the receipt.
+    :type digest: str
+    :param row: Column values from :meth:`models.Notification.to_row`.
     :type row: dict
-    :return: The stored notification, or ``{}`` if the insert failed.
+    :return: The stored notification.
     :rtype: dict
     """
-    conn = connect_to_db()
-    try:
-        cur = conn.cursor()
+    from outbox.audit_outbox import ACTION_NOTIFICATION_CREATED, \
+        queue_audit_event
+
+    with db.transaction() as cur:
         cur.execute(
             "INSERT INTO notifications (user_id, title, message, "
             "notification_type, severity_level, status, creation_date) "
-            "VALUES (?, ?, ?, ?, ?, 'Unread', ?)",
+            "VALUES (%s, %s, %s, %s, %s, 'Unread', %s) "
+            "RETURNING " + _NOTIFICATION_COLUMNS,
             (row["user_id"], row["title"], row["message"],
-             row["notification_type"], row["severity_level"],
-             datetime.now().isoformat(timespec="seconds")))
-        conn.commit()
-        new_id = cur.lastrowid
-    except Exception:
-        conn.rollback()
-        return {}
-    finally:
-        conn.close()
-    return get_notification_by_id(new_id)
+             row["notification_type"], row["severity_level"], utc_now()))
+        notification = jsonify_row(cur.fetchone())
+
+        cur.execute(
+            "INSERT INTO karim_notification_receipts "
+            "(event_id, source_service, payload_digest, notification_id) "
+            "VALUES (%s, %s, %s, %s)",
+            (event_id, source_service, digest,
+             notification["notification_id"]))
+
+        queue_audit_event(
+            source_service="notifications",
+            user_id=row.get("actor_user_id"),
+            action=ACTION_NOTIFICATION_CREATED,
+            description="Notification %s (%s) created for user %s by %s"
+                        % (notification["notification_id"],
+                           notification["notification_type"],
+                           notification["user_id"], source_service),
+            severity="Information",
+            related_service="notifications",
+            cursor=cur)
+
+    return notification
+
+
+# ---------------------------------------------------------------------------
+# Public reads and writes
+# ---------------------------------------------------------------------------
+
+def insert_notification(cursor, row):
+    """Insert a notification inside an open transaction.
+
+    Used by the public administrator endpoint. Internal deliveries go
+    through :func:`create_notification_with_receipt` instead, because they
+    also need a receipt.
+
+    :param cursor: An open cursor inside the business transaction.
+    :type cursor: psycopg.Cursor
+    :param row: Column values from :meth:`models.Notification.to_row`.
+    :type row: dict
+    :return: The stored notification.
+    :rtype: dict
+    """
+    cursor.execute(
+        "INSERT INTO notifications (user_id, title, message, "
+        "notification_type, severity_level, status, creation_date) "
+        "VALUES (%s, %s, %s, %s, %s, 'Unread', %s) "
+        "RETURNING " + _NOTIFICATION_COLUMNS,
+        (row["user_id"], row["title"], row["message"],
+         row["notification_type"], row["severity_level"], utc_now()))
+    return jsonify_row(cursor.fetchone())
 
 
 def get_notification_by_id(notification_id):
-    """Fetch a single notification.
+    """Fetch one notification.
 
     :param notification_id: The notification to fetch.
     :type notification_id: int
-    :return: The notification, or ``None`` if no such row exists.
+    :return: The notification, or ``None``.
     :rtype: dict or NoneType
     """
-    conn = connect_to_db()
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM notifications WHERE notification_id = ?",
-                    (notification_id,))
-        return row_to_dict(cur.fetchone())
-    finally:
-        conn.close()
+    return jsonify_row(db.query_one(
+        "SELECT " + _NOTIFICATION_COLUMNS +
+        " FROM notifications WHERE notification_id = %s", (notification_id,)))
 
 
 def get_notifications_by_user(user_id):
-    """Fetch every notification belonging to one user, newest first.
+    """Fetch one user's notifications, newest first.
 
-    :param user_id: The recipient to fetch notifications for.
+    :param user_id: The recipient.
     :type user_id: int
-    :return: The user's notifications, empty if they have none.
+    :return: Their notifications, empty if none.
     :rtype: list
     """
-    conn = connect_to_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT * FROM notifications WHERE user_id = ? "
-            "ORDER BY creation_date DESC, notification_id DESC",
-            (user_id,))
-        return rows_to_list(cur.fetchall())
-    finally:
-        conn.close()
+    return jsonify_rows(db.query_all(
+        "SELECT " + _NOTIFICATION_COLUMNS + " FROM notifications "
+        "WHERE user_id = %s "
+        "ORDER BY creation_date DESC, notification_id DESC", (user_id,)))
 
 
 def mark_notification_read(notification_id):
-    """Mark a notification as read and stamp the read date.
+    """Mark a notification read, preserving an existing read date.
 
-    Marking an already-read notification again leaves the original read date
-    alone, so the timestamp keeps meaning "when it was first opened".
-
-    :param notification_id: The notification to update.
+    :param notification_id: The notification to mark.
     :type notification_id: int
-    :return: The updated notification, or ``None`` if it does not exist.
+    :return: The updated notification, or ``None``.
     :rtype: dict or NoneType
     """
-    conn = connect_to_db()
-    try:
-        conn.execute(
-            "UPDATE notifications SET status = 'Read', read_date = ? "
-            "WHERE notification_id = ? AND status = 'Unread'",
-            (datetime.now().isoformat(timespec="seconds"), notification_id))
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        return None
-    finally:
-        conn.close()
+    db.execute(
+        "UPDATE notifications SET status = 'Read', read_date = %s "
+        "WHERE notification_id = %s AND status = 'Unread'",
+        (utc_now(), notification_id))
     return get_notification_by_id(notification_id)
 
 
-def search_notifications(user_id=None, notification_type=None,
-                         severity=None, status=None):
-    """Search notifications by any combination of four criteria.
-
-    Filters are combined with ``AND``. Passing nothing returns everything,
-    which is what an administrator browsing the service would expect.
+def search_notifications(user_id=None, notification_type=None, severity=None,
+                         status=None):
+    """Search notifications by up to four criteria, combined with AND.
 
     :param user_id: Restrict to one recipient, defaults to None.
     :type user_id: int, optional
@@ -163,50 +194,41 @@ def search_notifications(user_id=None, notification_type=None,
     :return: Matching notifications, newest first.
     :rtype: list
     """
-    query = "SELECT * FROM notifications WHERE 1 = 1"
+    sql = "SELECT " + _NOTIFICATION_COLUMNS + " FROM notifications WHERE TRUE"
     params = []
 
     if user_id is not None:
-        query += " AND user_id = ?"
+        sql += " AND user_id = %s"
         params.append(user_id)
     if notification_type:
-        query += " AND notification_type = ?"
+        sql += " AND notification_type = %s"
         params.append(notification_type)
     if severity:
-        query += " AND severity_level = ?"
+        sql += " AND severity_level = %s"
         params.append(severity)
     if status:
-        query += " AND status = ?"
+        sql += " AND status = %s"
         params.append(status)
 
-    query += " ORDER BY creation_date DESC, notification_id DESC"
-
-    conn = connect_to_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(query, tuple(params))
-        return rows_to_list(cur.fetchall())
-    finally:
-        conn.close()
+    sql += " ORDER BY creation_date DESC, notification_id DESC"
+    return jsonify_rows(db.query_all(sql, tuple(params)))
 
 
-def delete_notification(notification_id):
-    """Delete one notification.
+def delete_notification(cursor, notification_id):
+    """Delete one notification inside an open transaction.
 
+    The receipt row survives: its ``notification_id`` becomes ``NULL`` via
+    ``ON DELETE SET NULL``, so an identical retry still returns
+    ``duplicate=true`` with ``notification=null`` rather than recreating
+    the notification.
+
+    :param cursor: An open cursor inside the business transaction.
+    :type cursor: psycopg.Cursor
     :param notification_id: The notification to delete.
     :type notification_id: int
-    :return: ``True`` if a row was actually removed.
+    :return: ``True`` if a row was removed.
     :rtype: bool
     """
-    conn = connect_to_db()
-    try:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM notifications WHERE notification_id = ?",
-                    (notification_id,))
-        conn.commit()
-        return cur.rowcount > 0
-    except Exception:
-        conn.rollback()
-        return False
-    finally:
-        conn.close()
+    cursor.execute("DELETE FROM notifications WHERE notification_id = %s",
+                   (notification_id,))
+    return cursor.rowcount > 0

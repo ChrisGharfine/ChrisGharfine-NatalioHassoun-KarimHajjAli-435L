@@ -1,79 +1,204 @@
 """REST API for Service 8 -- Notification and Alert Management.
 
-Six endpoints, as required by the specification:
+The six public endpoints keep their Sprint I paths, permissions and
+envelopes. Section 7 of team-integration-v1.0.0 adds a seventh, internal
+endpoint that other services call over HTTP with their own service key,
+which is how Incidents and Vulnerabilities now raise alerts instead of
+importing this service's code.
 
-====== ================================== =====================================
-Method Endpoint                           Who may call it
-====== ================================== =====================================
-POST   /notifications                     Security Administrator
-GET    /notifications/user/{user_id}      All four roles
-GET    /notifications/{id}                All four roles
-PUT    /notifications/{id}/read           Administrator, Analyst, Employee
-GET    /notifications/search              Administrator, Analyst, Auditor
-DELETE /notifications/{id}                Security Administrator
-====== ================================== =====================================
-
-On top of the role check there is an ownership rule. A Security Analyst and
-a Regular Employee may only reach **their own** notifications -- the spec
-describes their access as "view assigned notifications" and "view personal
-notifications". Administrators and Auditors have oversight of the whole
-system, so they can read anybody's.
+The internal endpoint is idempotent. Every delivery carries an
+``Idempotency-Key``; the first one creates the notification, its receipt
+and its audit event in one transaction, and any identical retry returns
+the same result without creating anything. Receipts outlive the
+notifications they point at, so a retry after a deletion reports
+``notification: null`` rather than quietly recreating it.
 
 :author: Karim Hajj Ali
 """
 
+import uuid
+
 from flask import Blueprint, jsonify, request
 
+import config
 import constants
-from audit import write_log
-from auth import current_user, require_role
-from database import record_exists
+import db
 from models import Notification, ValidationError
+from outbox.audit_outbox import ACTION_NOTIFICATION_DELETED, queue_audit_event
+from security.guard import current_user, error, require_role
+from security.identity import IdentityUnavailable, is_assignable, lookup_user
+from security.service_auth import ServiceAuthError, authenticate_service
 from services.notifications_db import (
+    create_notification_with_receipt,
     delete_notification,
     get_notification_by_id,
     get_notifications_by_user,
+    get_receipt,
     insert_notification,
     mark_notification_read,
+    payload_digest,
     search_notifications,
 )
 
 notifications_bp = Blueprint("notifications", __name__)
 
-SERVICE_NAME = "Notification Management"
+SERVICE = config.SERVICE_NOTIFICATIONS
 
-#: Roles that may look at notifications belonging to somebody else.
+#: Roles that may read notifications belonging to somebody else.
 _OVERSIGHT_ROLES = (constants.ROLE_ADMIN, constants.ROLE_AUDITOR)
+
+#: Caller/type pairs permitted on the internal endpoint (section 7).
+_ALLOWED_CALLER_TYPES = {
+    "incidents": ("Incident Assignment",),
+    "vulnerabilities": ("Vulnerability Alert",),
+    "threats": ("Threat Alert",),
+    "users": ("System Notification",),
+    "playbooks": ("System Notification",),
+}
 
 
 def _may_access_user(target_user_id):
-    """Check whether the caller is allowed to see another user's inbox.
+    """Check whether the caller may read another user's inbox.
 
     :param target_user_id: The recipient whose notifications were requested.
     :type target_user_id: int
     :return: ``True`` if the caller may read them.
     :rtype: bool
     """
-    user = current_user()
-    if user["role"] in _OVERSIGHT_ROLES:
+    caller = current_user()
+    if caller["role"] in _OVERSIGHT_ROLES:
         return True
-    return user["user_id"] == target_user_id
+    return caller["id"] == target_user_id
 
 
 def _forbidden():
-    """Build the standard 403 response used by the ownership checks.
+    """Return the standard ``403`` used by the ownership checks.
 
-    :return: A ``403`` JSON response.
+    :return: A Flask response tuple.
     :rtype: tuple
     """
-    return jsonify({
-        "status": "error",
-        "message": "User does not have permission to perform this operation",
-    }), 403
+    return error("User does not have permission to perform this operation",
+                 403)
 
 
 # ---------------------------------------------------------------------------
-# 1. Create Notification
+# Internal delivery endpoint (section 7)
+# ---------------------------------------------------------------------------
+
+# Route owner: Karim Hajj Ali
+@notifications_bp.route("/internal/notifications", methods=["POST"])
+def api_internal_create_notification():
+    """Accept a notification raised by another service.
+
+    Developed by Karim Hajj Ali.
+
+    Authenticated by ``X-Service-Name`` and ``X-Service-Key``, never by a
+    user token. Requires an ``Idempotency-Key`` so retries are safe.
+
+    :return: ``201`` on first creation, ``200`` on an identical retry,
+        ``400`` invalid fields, ``401`` bad credentials, ``403`` a caller
+        raising a type it may not, ``404`` unknown recipient, ``409``
+        unavailable recipient or an idempotency conflict, ``503`` if Users
+        cannot be consulted.
+    :rtype: flask.Response
+    """
+    try:
+        caller_service = authenticate_service(request.headers)
+    except ServiceAuthError as failure:
+        return error(failure.message, failure.status)
+
+    raw_key = (request.headers.get("Idempotency-Key") or "").strip()
+    try:
+        event_id = str(uuid.UUID(raw_key))
+    except ValueError:
+        return error("A valid UUID 'Idempotency-Key' header is required", 400)
+
+    body = request.get_json(silent=True) or {}
+    notification_type = body.get("notification_type")
+
+    allowed_types = _ALLOWED_CALLER_TYPES.get(caller_service, ())
+    if notification_type not in allowed_types:
+        return error(
+            "Service '%s' may not raise '%s' notifications"
+            % (caller_service, notification_type), 403)
+
+    actor_user_id = body.get("actor_user_id")
+    if actor_user_id is not None:
+        try:
+            actor_user_id = int(actor_user_id)
+        except (TypeError, ValueError):
+            return error("'actor_user_id' must be an integer or null", 400)
+
+    try:
+        notification = Notification(
+            user_id=body.get("user_id"),
+            title=body.get("title"),
+            message=body.get("message"),
+            notification_type=notification_type,
+            severity=body.get("severity_level"))
+        notification.validate()
+    except ValidationError as failure:
+        return error(failure.message, 400)
+
+    row = notification.to_row()
+    digest = payload_digest({
+        "user_id": row["user_id"],
+        "actor_user_id": actor_user_id,
+        "title": row["title"],
+        "message": row["message"],
+        "notification_type": row["notification_type"],
+        "severity_level": row["severity_level"],
+    })
+
+    # An existing receipt short-circuits everything, including recipient
+    # revalidation, so an exact retry stays safe after the recipient has
+    # been deactivated or the notification deleted.
+    receipt = get_receipt(event_id)
+    if receipt is not None:
+        if receipt["source_service"] != caller_service or \
+                receipt["payload_digest"] != digest:
+            return jsonify({
+                "status": "error",
+                "code": "IDEMPOTENCY_CONFLICT",
+                "message": "This Idempotency-Key was already used with a "
+                           "different payload or by a different service",
+            }), 409
+        stored = (get_notification_by_id(receipt["notification_id"])
+                  if receipt["notification_id"] is not None else None)
+        return jsonify({
+            "status": "success",
+            "data": {"event_id": event_id, "notification": stored,
+                     "duplicate": True},
+        }), 200
+
+    try:
+        recipient = lookup_user(row["user_id"], SERVICE)
+    except IdentityUnavailable as failure:
+        return error(failure.message, 503)
+
+    if recipient is None:
+        return error("No user with id %s exists" % row["user_id"], 404)
+    if not is_assignable(recipient):
+        return jsonify({
+            "status": "error",
+            "code": "RECIPIENT_UNAVAILABLE",
+            "message": "User %s cannot receive notifications because the "
+                       "account is inactive or deleted" % row["user_id"],
+        }), 409
+
+    row["actor_user_id"] = actor_user_id
+    stored = create_notification_with_receipt(
+        event_id, caller_service, digest, row)
+
+    return jsonify({
+        "status": "success",
+        "data": {"event_id": event_id, "notification": stored,
+                 "duplicate": False},
+    }), 201
+
+
+# ---------------------------------------------------------------------------
+# 1. Create Notification (public, administrator only)
 # ---------------------------------------------------------------------------
 
 # Route owner: Karim Hajj Ali
@@ -84,11 +209,8 @@ def api_create_notification():
 
     Developed by Karim Hajj Ali.
 
-    Expects a JSON body with ``user_id``, ``title``, ``message``,
-    ``notification_type`` and ``severity``.
-
     :return: ``201`` with the stored notification, ``400`` on a validation
-        error, or ``404`` if the recipient does not exist.
+        error, ``404`` unknown recipient, or ``503`` if Users is unreachable.
     :rtype: flask.Response
     """
     body = request.get_json(silent=True) or {}
@@ -102,28 +224,36 @@ def api_create_notification():
             notification_type=body.get("notification_type"),
             severity=body.get("severity"))
         notification.validate()
-    except ValidationError as error:
-        return jsonify({"status": "error", "message": error.message}), 400
+    except ValidationError as failure:
+        return error(failure.message, 400)
 
-    if not record_exists("users", "user_id", notification.get_user_id()):
-        return jsonify({
-            "status": "error",
-            "message": "No user with id %s exists"
-                       % notification.get_user_id(),
-        }), 404
+    try:
+        recipient = lookup_user(notification.get_user_id(), SERVICE)
+    except IdentityUnavailable as failure:
+        return error(failure.message, 503)
 
-    stored = insert_notification(notification.to_row())
-    if not stored:
-        return jsonify({
-            "status": "error",
-            "message": "The notification could not be saved",
-        }), 500
+    if recipient is None:
+        return error("No user with id %s exists" % notification.get_user_id(),
+                     404)
+    if not is_assignable(recipient):
+        return error("User %s cannot receive notifications because the "
+                     "account is inactive or deleted"
+                     % notification.get_user_id(), 409)
 
-    write_log(caller["user_id"], "Notification created",
-              "Notification %s (%s) sent to user %s"
-              % (stored["notification_id"], stored["notification_type"],
-                 stored["user_id"]),
-              "Information", SERVICE_NAME)
+    from outbox.audit_outbox import ACTION_NOTIFICATION_CREATED
+
+    with db.transaction() as cur:
+        stored = insert_notification(cur, notification.to_row())
+        queue_audit_event(
+            source_service=SERVICE,
+            user_id=caller["id"],
+            action=ACTION_NOTIFICATION_CREATED,
+            description="Notification %s (%s) created for user %s"
+                        % (stored["notification_id"],
+                           stored["notification_type"], stored["user_id"]),
+            severity="Information",
+            related_service=SERVICE,
+            cursor=cur)
 
     return jsonify({
         "status": "success",
@@ -145,23 +275,21 @@ def api_get_user_notifications(user_id):
 
     Developed by Karim Hajj Ali.
 
-    A user with no notifications gets ``200`` and an empty list rather than
-    a ``404`` -- an empty inbox is a valid answer, not a missing resource.
-
     :param user_id: The recipient whose notifications to return.
     :type user_id: int
-    :return: ``200`` with the list, ``403`` if the caller may not read this
-        user's inbox, or ``404`` if the user does not exist.
+    :return: ``200`` with the list, ``403``, ``404``, or ``503``.
     :rtype: flask.Response
     """
     if not _may_access_user(user_id):
         return _forbidden()
 
-    if not record_exists("users", "user_id", user_id):
-        return jsonify({
-            "status": "error",
-            "message": "No user with id %s exists" % user_id,
-        }), 404
+    try:
+        recipient = lookup_user(user_id, SERVICE)
+    except IdentityUnavailable as failure:
+        return error(failure.message, 503)
+
+    if recipient is None:
+        return error("No user with id %s exists" % user_id, 404)
 
     notifications = get_notifications_by_user(user_id)
     return jsonify({
@@ -188,24 +316,17 @@ def api_get_notification(notification_id):
 
     :param notification_id: The notification to return.
     :type notification_id: int
-    :return: ``200`` with the notification, ``403`` if it belongs to somebody
-        else, or ``404`` if there is no such notification.
+    :return: ``200`` with the notification, ``403``, or ``404``.
     :rtype: flask.Response
     """
     notification = get_notification_by_id(notification_id)
     if notification is None:
-        return jsonify({
-            "status": "error",
-            "message": "No notification with id %s exists" % notification_id,
-        }), 404
-
+        return error("No notification with id %s exists" % notification_id,
+                     404)
     if not _may_access_user(notification["user_id"]):
         return _forbidden()
-
-    return jsonify({
-        "status": "success",
-        "notification": notification,
-    }), 200
+    return jsonify({"status": "success",
+                    "notification": notification}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -224,17 +345,13 @@ def api_mark_notification_read(notification_id):
 
     :param notification_id: The notification to mark.
     :type notification_id: int
-    :return: ``200`` with the updated notification, ``403`` if it belongs to
-        somebody else, or ``404`` if there is no such notification.
+    :return: ``200`` with the updated notification, ``403``, or ``404``.
     :rtype: flask.Response
     """
     notification = get_notification_by_id(notification_id)
     if notification is None:
-        return jsonify({
-            "status": "error",
-            "message": "No notification with id %s exists" % notification_id,
-        }), 404
-
+        return error("No notification with id %s exists" % notification_id,
+                     404)
     if not _may_access_user(notification["user_id"]):
         return _forbidden()
 
@@ -262,16 +379,9 @@ def api_search_notifications():
 
     Developed by Karim Hajj Ali.
 
-    Criteria arrive as query string parameters and are combined with ``AND``,
-    for example::
+    An analyst's search is silently scoped to their own inbox.
 
-        GET /notifications/search?severity=Critical&status=Unread
-
-    An analyst searching is silently restricted to their own notifications,
-    so the filter cannot be used to read somebody else's inbox.
-
-    :return: ``200`` with the matches, or ``400`` if a filter value is not a
-        recognised option.
+    :return: ``200`` with the matches, or ``400`` on an invalid filter.
     :rtype: flask.Response
     """
     caller = current_user()
@@ -285,51 +395,34 @@ def api_search_notifications():
         try:
             user_id = int(user_id)
         except ValueError:
-            return jsonify({
-                "status": "error",
-                "message": "'user_id' must be an integer",
-            }), 400
+            return error("'user_id' must be an integer", 400)
 
-    if notification_type and notification_type not in constants.NOTIFICATION_TYPES:
-        return jsonify({
-            "status": "error",
-            "message": "'notification_type' must be one of: %s"
-                       % ", ".join(constants.NOTIFICATION_TYPES),
-        }), 400
+    if notification_type and \
+            notification_type not in constants.NOTIFICATION_TYPES:
+        return error("'notification_type' must be one of: %s"
+                     % ", ".join(constants.NOTIFICATION_TYPES), 400)
 
     if severity and severity not in constants.SEVERITIES:
-        return jsonify({
-            "status": "error",
-            "message": "'severity' must be one of: %s"
-                       % ", ".join(constants.SEVERITIES),
-        }), 400
+        return error("'severity' must be one of: %s"
+                     % ", ".join(constants.SEVERITIES), 400)
 
     if status and status not in constants.NOTIFICATION_STATUSES:
-        return jsonify({
-            "status": "error",
-            "message": "'status' must be one of: %s"
-                       % ", ".join(constants.NOTIFICATION_STATUSES),
-        }), 400
+        return error("'status' must be one of: %s"
+                     % ", ".join(constants.NOTIFICATION_STATUSES), 400)
 
-    # An analyst only ever searches their own inbox, whatever they asked for.
     if caller["role"] not in _OVERSIGHT_ROLES:
-        user_id = caller["user_id"]
+        user_id = caller["id"]
 
-    results = search_notifications(
-        user_id=user_id,
-        notification_type=notification_type,
-        severity=severity,
-        status=status)
+    results = search_notifications(user_id=user_id,
+                                   notification_type=notification_type,
+                                   severity=severity, status=status)
 
     return jsonify({
         "status": "success",
         "count": len(results),
-        "filters_applied": {
-            "user_id": user_id,
-            "notification_type": notification_type,
-            "severity": severity,
-            "status": status,
-        },
+        "filters_applied": {"user_id": user_id,
+                            "notification_type": notification_type,
+                            "severity": severity, "status": status},
         "notifications": results,
     }), 200
 
@@ -347,35 +440,32 @@ def api_delete_notification(notification_id):
 
     Developed by Karim Hajj Ali.
 
-    Restricted to administrators. An analyst or employee who tries this is
-    refused with ``403`` and the attempt is written to the audit log by the
-    :func:`auth.require_role` decorator.
+    The delivery receipt survives, so an identical retry of the original
+    internal delivery will not recreate it.
 
     :param notification_id: The notification to delete.
     :type notification_id: int
-    :return: ``200`` on success, or ``404`` if there is no such notification.
+    :return: ``200`` on success, or ``404``.
     :rtype: flask.Response
     """
     caller = current_user()
 
     if get_notification_by_id(notification_id) is None:
-        return jsonify({
-            "status": "error",
-            "message": "No notification with id %s exists" % notification_id,
-        }), 404
+        return error("No notification with id %s exists" % notification_id,
+                     404)
 
-    if not delete_notification(notification_id):
-        return jsonify({
-            "status": "error",
-            "message": "The notification could not be deleted",
-        }), 500
+    with db.transaction() as cur:
+        removed = delete_notification(cur, notification_id)
+        if not removed:
+            return error("The notification could not be deleted", 500)
+        queue_audit_event(
+            source_service=SERVICE,
+            user_id=caller["id"],
+            action=ACTION_NOTIFICATION_DELETED,
+            description="Notification %s deleted" % notification_id,
+            severity="Warning",
+            related_service=SERVICE,
+            cursor=cur)
 
-    write_log(caller["user_id"], "Notification deleted",
-              "Notification %s was deleted by %s"
-              % (notification_id, caller["full_name"]),
-              "Warning", SERVICE_NAME)
-
-    return jsonify({
-        "status": "success",
-        "message": "Notification deleted successfully",
-    }), 200
+    return jsonify({"status": "success",
+                    "message": "Notification deleted successfully"}), 200

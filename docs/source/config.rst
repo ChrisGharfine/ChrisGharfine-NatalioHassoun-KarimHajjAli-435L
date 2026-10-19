@@ -1,7 +1,7 @@
-seed module
-===========
+config module
+=============
 
-.. automodule:: seed
+.. automodule:: config
    :members:
    :show-inheritance:
    :undoc-members:

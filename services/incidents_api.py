@@ -1,37 +1,37 @@
 """REST API for Service 3 -- Incident Management.
 
-Six endpoints, as required by the specification:
+Public paths and permissions are unchanged from Sprint I. What changed
+under team-integration-v1.0.0 is everything behind them:
 
-====== ================================= ======================================
-Method Endpoint                          Who may call it
-====== ================================= ======================================
-POST   /incidents                        Administrator, Regular Employee
-GET    /incidents                        Administrator, Auditor
-GET    /incidents/{id}                   All four roles
-PUT    /incidents/{id}/assign            Security Administrator
-PUT    /incidents/{id}/status            Administrator, Analyst
-POST   /incidents/{id}/notes             Administrator, Analyst
-====== ================================= ======================================
-
-Two rules on top of the plain role check:
-
-* A Regular Employee may only read incidents **they reported themselves**.
-  The spec limits them to "view submitted incidents" and "track the status
-  of reported incidents", and explicitly says they cannot access wider
-  organisational security information.
-* Status changes follow the lifecycle one step at a time. The ordering lives
-  in :class:`models.IncidentWorkflow`, not in this file.
+* ``@require_role`` now verifies a real JWT and asks Users for the
+  caller's current role on every request.
+* Reporter, analyst and asset existence are checked over HTTP against
+  Natalio's and Chris's services instead of by querying their tables.
+* Each mutation and its audit event commit in one transaction; the event
+  is delivered to Logs later by the worker.
+* Assignment queues a notification in the outbox and lets the worker POST
+  it to the Notifications service. Nothing is imported from it.
 
 :author: Karim Hajj Ali
 """
 
 from flask import Blueprint, jsonify, request
 
+import config
 import constants
-from audit import write_log
-from auth import current_user, require_role
-from database import record_exists
+import db
+from clients.assets_client import AssetsUnavailable, lookup_asset
 from models import Incident, IncidentWorkflow, ValidationError, require_text
+from outbox.audit_outbox import (
+    ACTION_INCIDENT_ASSIGNED,
+    ACTION_INCIDENT_CREATED,
+    ACTION_INCIDENT_STATUS_UPDATED,
+    ACTION_INVESTIGATION_NOTE_ADDED,
+    queue_audit_event,
+)
+from outbox.notification_outbox import queue_notification
+from security.guard import current_user, error, require_role
+from security.identity import IdentityUnavailable, is_assignable, lookup_user
 from services.incidents_db import (
     assign_incident,
     get_incident_by_id,
@@ -40,28 +40,14 @@ from services.incidents_db import (
     insert_incident,
     insert_note,
     update_incident_status,
-    user_has_role,
 )
-from services.notifications_db import send_notification
 
 incidents_bp = Blueprint("incidents", __name__)
 
-SERVICE_NAME = "Incident Management"
+SERVICE = config.SERVICE_INCIDENTS
 
-#: One shared workflow object -- it holds no per-request state.
+#: One shared workflow object; it holds no per-request state.
 WORKFLOW = IncidentWorkflow()
-
-
-def _forbidden():
-    """Build the standard 403 response used by the ownership checks.
-
-    :return: A ``403`` JSON response.
-    :rtype: tuple
-    """
-    return jsonify({
-        "status": "error",
-        "message": "User does not have permission to perform this operation",
-    }), 403
 
 
 # ---------------------------------------------------------------------------
@@ -76,21 +62,17 @@ def api_create_incident():
 
     Developed by Karim Hajj Ali.
 
-    Expects ``title``, ``description``, ``category``, ``severity`` and
-    ``affected_asset``. ``reporter`` is optional: it defaults to whoever is
-    logged in, and a Regular Employee is forced to be the reporter of their
-    own report so nobody can file an incident in someone else's name.
-
-    :return: ``201`` with the stored incident, ``400`` on a validation error,
-        or ``404`` if the reporter or the affected asset does not exist.
+    :return: ``201`` with the stored incident, ``400`` on a validation
+        error, ``404`` if the reporter or asset does not exist, or ``503``
+        if Users or Assets cannot be consulted.
     :rtype: flask.Response
     """
     body = request.get_json(silent=True) or {}
     caller = current_user()
 
-    reporter_id = body.get("reporter", caller["user_id"])
+    reporter_id = body.get("reporter", caller["id"])
     if caller["role"] == constants.ROLE_EMPLOYEE:
-        reporter_id = caller["user_id"]
+        reporter_id = caller["id"]
 
     try:
         incident = Incident(
@@ -101,37 +83,43 @@ def api_create_incident():
             reporter_id=reporter_id,
             asset_id=body.get("affected_asset"))
         incident.validate()
-    except ValidationError as error:
-        return jsonify({"status": "error", "message": error.message}), 400
+    except ValidationError as failure:
+        return error(failure.message, 400)
 
-    if not record_exists("users", "user_id", incident.get_reporter_id()):
-        return jsonify({
-            "status": "error",
-            "message": "No user with id %s exists to report this incident"
-                       % incident.get_reporter_id(),
-        }), 404
+    try:
+        reporter = lookup_user(incident.get_reporter_id(), SERVICE)
+    except IdentityUnavailable as failure:
+        return error(failure.message, 503)
+
+    if reporter is None:
+        return error("No user with id %s exists to report this incident"
+                     % incident.get_reporter_id(), 404)
+    if not is_assignable(reporter):
+        return error("User %s cannot be recorded as the reporter because the "
+                     "account is not active" % incident.get_reporter_id(), 400)
 
     if incident.get_asset_id() is not None:
-        if not record_exists("assets", "asset_id", incident.get_asset_id()):
-            return jsonify({
-                "status": "error",
-                "message": "No asset with id %s exists"
-                           % incident.get_asset_id(),
-            }), 404
+        try:
+            asset = lookup_asset(incident.get_asset_id(), SERVICE)
+        except AssetsUnavailable as failure:
+            return error(failure.message, 503)
+        if asset is None:
+            return error("No asset with id %s exists"
+                         % incident.get_asset_id(), 404)
 
-    stored = insert_incident(incident.to_row())
-    if not stored:
-        return jsonify({
-            "status": "error",
-            "message": "The incident could not be saved",
-        }), 500
-
-    write_log(caller["user_id"], "Incident created",
-              "Incident %s '%s' reported with severity %s"
-              % (stored["incident_id"], stored["title"], stored["severity"]),
-              "Warning" if stored["severity"] in ("High", "Critical")
-              else "Information",
-              SERVICE_NAME)
+    row = incident.to_row()
+    with db.transaction() as cur:
+        stored = insert_incident(cur, row)
+        queue_audit_event(
+            source_service=SERVICE,
+            user_id=caller["id"],
+            action=ACTION_INCIDENT_CREATED,
+            description="Incident %s reported with severity %s"
+                        % (stored["incident_id"], stored["severity"]),
+            severity="Warning" if stored["severity"] in ("High", "Critical")
+                     else "Information",
+            related_service=SERVICE,
+            cursor=cur)
 
     return jsonify({
         "status": "success",
@@ -152,8 +140,8 @@ def api_get_incidents():
 
     Developed by Karim Hajj Ali.
 
-    Each entry carries its current status and the analyst it is assigned to,
-    resolved to a readable name rather than a bare id.
+    The complete list, with no role-based subset, as section 5 requires of
+    a report source.
 
     :return: ``200`` with the list of incidents.
     :rtype: flask.Response
@@ -188,26 +176,21 @@ def api_get_incident(incident_id):
     :param incident_id: The incident to return.
     :type incident_id: int
     :return: ``200`` with the incident, ``403`` if an employee asks for an
-        incident they did not report, or ``404`` if it does not exist.
+        incident they did not report, or ``404``.
     :rtype: flask.Response
     """
     caller = current_user()
     incident = get_incident_with_notes(incident_id)
 
     if incident is None:
-        return jsonify({
-            "status": "error",
-            "message": "No incident with id %s exists" % incident_id,
-        }), 404
+        return error("No incident with id %s exists" % incident_id, 404)
 
     if (caller["role"] == constants.ROLE_EMPLOYEE
-            and incident["reporter_id"] != caller["user_id"]):
-        return _forbidden()
+            and incident["reporter_id"] != caller["id"]):
+        return error("User does not have permission to perform this "
+                     "operation", 403)
 
-    return jsonify({
-        "status": "success",
-        "incident": incident,
-    }), 200
+    return jsonify({"status": "success", "incident": incident}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -222,15 +205,16 @@ def api_assign_incident(incident_id):
 
     Developed by Karim Hajj Ali.
 
-    Runs the three checks the spec asks for: the incident exists, the target
-    user holds the Security Analyst role, and the assignment is written to
-    the audit log. It also raises an ``Incident Assignment`` notification for
-    the analyst, which is the hand-off point into Service 8.
+    The analyst's role comes from Users over HTTP, so an account that was
+    demoted after the token was issued is refused. The assignment, its
+    audit event and the notification work all commit together; the
+    notification itself is posted to the Notifications service afterwards
+    by the worker.
 
     :param incident_id: The incident to assign.
     :type incident_id: int
     :return: ``200`` with the updated incident, ``400`` if the target is not
-        an analyst, or ``404`` if the incident or the user does not exist.
+        an assignable analyst, ``404``, or ``503`` if Users is unreachable.
     :rtype: flask.Response
     """
     body = request.get_json(silent=True) or {}
@@ -238,60 +222,53 @@ def api_assign_incident(incident_id):
 
     incident = get_incident_by_id(incident_id)
     if incident is None:
-        return jsonify({
-            "status": "error",
-            "message": "No incident with id %s exists" % incident_id,
-        }), 404
+        return error("No incident with id %s exists" % incident_id, 404)
 
     analyst_id = body.get("analyst_id")
     if analyst_id is None:
-        return jsonify({
-            "status": "error",
-            "message": "'analyst_id' is required",
-        }), 400
-
+        return error("'analyst_id' is required", 400)
     try:
         analyst_id = int(analyst_id)
     except (TypeError, ValueError):
-        return jsonify({
-            "status": "error",
-            "message": "'analyst_id' must be an integer",
-        }), 400
+        return error("'analyst_id' must be an integer", 400)
 
-    if not record_exists("users", "user_id", analyst_id):
-        return jsonify({
-            "status": "error",
-            "message": "No user with id %s exists" % analyst_id,
-        }), 404
+    try:
+        analyst = lookup_user(analyst_id, SERVICE)
+    except IdentityUnavailable as failure:
+        return error(failure.message, 503)
 
-    if not user_has_role(analyst_id, constants.ROLE_ANALYST):
-        return jsonify({
-            "status": "error",
-            "message": "User %s is not a Security Analyst, so this incident "
-                       "cannot be assigned to them" % analyst_id,
-        }), 400
+    if analyst is None:
+        return error("No user with id %s exists" % analyst_id, 404)
+    if not is_assignable(analyst):
+        return error("User %s cannot be assigned work because the account is "
+                     "not active" % analyst_id, 400)
+    if analyst["role"] != constants.ROLE_ANALYST:
+        return error("User %s is not a Security Analyst, so this incident "
+                     "cannot be assigned to them" % analyst_id, 400)
 
-    updated = assign_incident(incident_id, analyst_id)
-    if updated is None:
-        return jsonify({
-            "status": "error",
-            "message": "The incident could not be assigned",
-        }), 500
-
-    write_log(caller["user_id"], "Incident assigned",
-              "Incident %s assigned to analyst %s (%s)"
-              % (incident_id, analyst_id, updated["assigned_analyst_name"]),
-              "Information", SERVICE_NAME)
-
-    # Service 8 hand-off: tell the analyst they have work.
-    send_notification(
-        user_id=analyst_id,
-        title="Incident #%s assigned to you" % incident_id,
-        message="You have been assigned incident '%s' (severity %s). "
-                "Current status: %s."
-                % (updated["title"], updated["severity"], updated["status"]),
-        notification_type="Incident Assignment",
-        severity=updated["severity"])
+    with db.transaction() as cur:
+        updated = assign_incident(cur, incident_id, analyst_id)
+        queue_audit_event(
+            source_service=SERVICE,
+            user_id=caller["id"],
+            action=ACTION_INCIDENT_ASSIGNED,
+            description="Incident %s assigned to analyst %s"
+                        % (incident_id, analyst_id),
+            severity="Information",
+            related_service=SERVICE,
+            cursor=cur)
+        queue_notification(
+            source_service=SERVICE,
+            recipient_user_id=analyst_id,
+            actor_user_id=caller["id"],
+            title="Incident #%s assigned to you" % incident_id,
+            message="You have been assigned incident '%s' (severity %s). "
+                    "Current status: %s."
+                    % (updated["title"], updated["severity"],
+                       updated["status"]),
+            notification_type="Incident Assignment",
+            severity_level=updated["severity"],
+            cursor=cur)
 
     return jsonify({
         "status": "success",
@@ -312,15 +289,13 @@ def api_update_incident_status(incident_id):
 
     Developed by Karim Hajj Ali.
 
-    The lifecycle is ``Open -> Under Investigation -> Mitigated -> Resolved
-    -> Closed`` and only the immediate next step is accepted, so an incident
-    cannot be closed without being investigated first. The rejection message
-    names the status that *would* have been allowed.
+    ``Open -> Under Investigation -> Mitigated -> Resolved -> Closed``,
+    one step at a time.
 
     :param incident_id: The incident to update.
     :type incident_id: int
     :return: ``200`` with the updated incident, ``400`` if the transition is
-        not allowed, or ``404`` if the incident does not exist.
+        not allowed, or ``404``.
     :rtype: flask.Response
     """
     body = request.get_json(silent=True) or {}
@@ -328,35 +303,28 @@ def api_update_incident_status(incident_id):
 
     incident = get_incident_by_id(incident_id)
     if incident is None:
-        return jsonify({
-            "status": "error",
-            "message": "No incident with id %s exists" % incident_id,
-        }), 404
+        return error("No incident with id %s exists" % incident_id, 404)
 
     new_status = body.get("status")
     if new_status is None:
-        return jsonify({
-            "status": "error",
-            "message": "'status' is required",
-        }), 400
+        return error("'status' is required", 400)
 
     try:
         WORKFLOW.check_transition(incident["status"], new_status)
-    except ValidationError as error:
-        return jsonify({"status": "error", "message": error.message}), 400
+    except ValidationError as failure:
+        return error(failure.message, 400)
 
-    updated = update_incident_status(incident_id, new_status)
-    if updated is None:
-        return jsonify({
-            "status": "error",
-            "message": "The incident status could not be updated",
-        }), 500
-
-    write_log(caller["user_id"], "Incident status updated",
-              "Incident %s moved from '%s' to '%s' by %s"
-              % (incident_id, incident["status"], new_status,
-                 caller["full_name"]),
-              "Information", SERVICE_NAME)
+    with db.transaction() as cur:
+        updated = update_incident_status(cur, incident_id, new_status)
+        queue_audit_event(
+            source_service=SERVICE,
+            user_id=caller["id"],
+            action=ACTION_INCIDENT_STATUS_UPDATED,
+            description="Incident %s moved from '%s' to '%s'"
+                        % (incident_id, incident["status"], new_status),
+            severity="Information",
+            related_service=SERVICE,
+            cursor=cur)
 
     return jsonify({
         "status": "success",
@@ -379,41 +347,33 @@ def api_add_investigation_note(incident_id):
 
     Developed by Karim Hajj Ali.
 
-    The note records who wrote it and when, and is linked to the incident by
-    foreign key, so ``GET /incidents/{id}`` returns the whole investigation
-    trail in order.
-
     :param incident_id: The incident to attach the note to.
     :type incident_id: int
-    :return: ``201`` with the stored note, ``400`` if the note is empty, or
-        ``404`` if the incident does not exist.
+    :return: ``201`` with the stored note, ``400`` if it is empty, or ``404``.
     :rtype: flask.Response
     """
     body = request.get_json(silent=True) or {}
     caller = current_user()
 
     if get_incident_by_id(incident_id) is None:
-        return jsonify({
-            "status": "error",
-            "message": "No incident with id %s exists" % incident_id,
-        }), 404
+        return error("No incident with id %s exists" % incident_id, 404)
 
     try:
         note_content = require_text(body.get("note_content"), "note_content")
-    except ValidationError as error:
-        return jsonify({"status": "error", "message": error.message}), 400
+    except ValidationError as failure:
+        return error(failure.message, 400)
 
-    stored = insert_note(incident_id, caller["user_id"], note_content)
-    if not stored:
-        return jsonify({
-            "status": "error",
-            "message": "The investigation note could not be saved",
-        }), 500
-
-    write_log(caller["user_id"], "Investigation note added",
-              "Note %s added to incident %s by %s"
-              % (stored["note_id"], incident_id, caller["full_name"]),
-              "Information", SERVICE_NAME)
+    with db.transaction() as cur:
+        stored = insert_note(cur, incident_id, caller["id"], note_content)
+        queue_audit_event(
+            source_service=SERVICE,
+            user_id=caller["id"],
+            action=ACTION_INVESTIGATION_NOTE_ADDED,
+            description="Note %s added to incident %s"
+                        % (stored["note_id"], incident_id),
+            severity="Information",
+            related_service=SERVICE,
+            cursor=cur)
 
     return jsonify({
         "status": "success",

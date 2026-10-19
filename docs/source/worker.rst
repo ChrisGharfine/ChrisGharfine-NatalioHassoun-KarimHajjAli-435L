@@ -1,7 +1,7 @@
-audit module
-============
+worker module
+=============
 
-.. automodule:: audit
+.. automodule:: worker
    :members:
    :show-inheritance:
    :undoc-members:

@@ -1,7 +1,7 @@
-auth module
-===========
+db module
+=========
 
-.. automodule:: auth
+.. automodule:: db
    :members:
    :show-inheritance:
    :undoc-members:
