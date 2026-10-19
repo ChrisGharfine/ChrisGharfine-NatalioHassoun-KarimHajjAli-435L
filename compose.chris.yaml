@@ -9,20 +9,18 @@ x-chris-app: &app
   environment: &environment
     CHRIS_DATABASE_URL: ${CHRIS_DATABASE_URL:?Set the approved PostgreSQL connection URL}
     CHRIS_JWT_VERIFICATION_KEY: ${CHRIS_JWT_VERIFICATION_KEY:?Set the shared JWT verification key}
-    CHRIS_JWT_ALGORITHM: ${CHRIS_JWT_ALGORITHM:-RS256}
-    CHRIS_JWT_ISSUER: ${CHRIS_JWT_ISSUER:?Set the shared JWT issuer}
-    CHRIS_JWT_AUDIENCE: ${CHRIS_JWT_AUDIENCE:?Set the shared JWT audience}
-    CHRIS_JWT_ROLE_CLAIM: ${CHRIS_JWT_ROLE_CLAIM:-role}
-    CHRIS_JWT_ACCOUNT_STATUS_CLAIM: ${CHRIS_JWT_ACCOUNT_STATUS_CLAIM:-account_status}
-    CHRIS_JWT_ACTIVE_STATUS: ${CHRIS_JWT_ACTIVE_STATUS:-active}
-    CHRIS_USERS_URL: ${CHRIS_USERS_URL:-http://users:8000}
+    CHRIS_JWT_ALGORITHM: ${CHRIS_JWT_ALGORITHM:-HS256}
+    CHRIS_JWT_ISSUER: ${CHRIS_JWT_ISSUER:-security-sprint1-users}
+    CHRIS_JWT_AUDIENCE: ${CHRIS_JWT_AUDIENCE:-security-sprint1-services}
+    CHRIS_SERVICE_TOKENS: ${CHRIS_SERVICE_TOKENS:?Set the required distinct service keys as JSON}
+    CHRIS_USERS_URL: ${CHRIS_USERS_URL:-http://host.docker.internal:8001/api/natalio-hassoun}
     CHRIS_ASSETS_URL: ${CHRIS_ASSETS_URL:-http://assets:8000}
-    CHRIS_INCIDENTS_URL: ${CHRIS_INCIDENTS_URL:-http://incidents:8000}
+    CHRIS_INCIDENTS_URL: ${CHRIS_INCIDENTS_URL:-http://host.docker.internal:8003}
     CHRIS_THREATS_URL: ${CHRIS_THREATS_URL:-http://threats:8000}
-    CHRIS_AUDIT_URL: ${CHRIS_AUDIT_URL:-http://audit:8000}
-    CHRIS_VULNERABILITIES_URL: ${CHRIS_VULNERABILITIES_URL:-http://vulnerabilities:8000}
-    CHRIS_LOGIN_SUCCESS_ACTION: ${CHRIS_LOGIN_SUCCESS_ACTION:-auth.login.succeeded}
-    CHRIS_LOGIN_FAILURE_ACTION: ${CHRIS_LOGIN_FAILURE_ACTION:-auth.login.failed}
+    CHRIS_AUDIT_URL: ${CHRIS_AUDIT_URL:-http://host.docker.internal:8005/api/natalio-hassoun}
+    CHRIS_VULNERABILITIES_URL: ${CHRIS_VULNERABILITIES_URL:-http://host.docker.internal:8007}
+    CHRIS_LOGIN_SUCCESS_ACTION: ${CHRIS_LOGIN_SUCCESS_ACTION:-login_success}
+    CHRIS_LOGIN_FAILURE_ACTION: ${CHRIS_LOGIN_FAILURE_ACTION:-login_failed}
   healthcheck:
     test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=3)"]
     interval: 15s
@@ -64,9 +62,6 @@ services:
     <<: *app
     profiles: [audit]
     command: [python, -m, services.chris_support.audit_worker]
-    environment:
-      <<: *environment
-      CHRIS_AUDIT_SERVICE_TOKEN: ${CHRIS_AUDIT_SERVICE_TOKEN:-}
     healthcheck:
       disable: true
 

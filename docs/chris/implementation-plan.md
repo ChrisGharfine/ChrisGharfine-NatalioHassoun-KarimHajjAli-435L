@@ -1,5 +1,10 @@
 # Implementation status and baseline (Chris Gharfine)
 
+On October 19, 2026, Chris authorized implementation of his tasks in
+[team-integration-v1.0.0](TEAM_INTEGRATION_V1.md). His runtime, tests, Postman and
+operating guide now follow those boundaries. The original baseline below records
+the earlier milestone; current verification is in [verification.md](verification.md).
+
 On October 18, 2026, Chris approved the proposed FastAPI/PostgreSQL baseline,
 including shared-database foreign keys, shared JWT verification, HTTP report
 aggregation, and explicit pending external integrations. This approval supersedes

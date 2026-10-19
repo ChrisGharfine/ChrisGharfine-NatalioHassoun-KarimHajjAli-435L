@@ -1,36 +1,39 @@
 import httpx
 import pytest
 
+from services.chris_support.errors import ApiError
+from services.reports.client import SourceClient
+
 
 @pytest.fixture
 def source_data(threat_body):
     return {
-        "/users": [{"id": 1, "password": "ignored-test-field"}, {"id": 2}, {"id": 3}],
+        "/users": {"status": "success", "data": [{"id": 1}, {"id": 2}, {"id": 3}]},
         "/assets": [
             {"id": 1, "asset_type": "server", "criticality": "critical", "status": "active"},
             {"id": 2, "asset_type": "server", "criticality": "low", "status": "inactive"},
         ],
-        "/incidents": [
-            {"id": 1, "severity": "critical", "status": "open"},
-            {"id": 2, "severity": "high", "status": "under_investigation"},
-            {"id": 3, "severity": "low", "status": "closed"},
-        ],
+        "/incidents": {"status": "success", "count": 3, "incidents": [
+            {"incident_id": 1, "severity": "Critical", "status": "Open"},
+            {"incident_id": 2, "severity": "High", "status": "Under Investigation"},
+            {"incident_id": 3, "severity": "Low", "status": "Closed"},
+        ]},
         "/threats": [
             threat_body | {"id": 1, "date_added": "2026-10-01T10:00:00Z"},
             threat_body | {"id": 2, "severity": "low", "date_added": "2026-10-02T10:00:00Z"},
             threat_body | {"id": 3, "date_added": "2026-10-02T10:00:00Z"},
         ],
-        "/vulnerabilities": [
-            {"id": 1, "severity": "critical", "status": "open"},
-            {"id": 2, "severity": "high", "status": "in_progress"},
-        ],
-        "/logs": [
+        "/vulnerabilities": {"status": "success", "count": 2, "vulnerabilities": [
+            {"vulnerability_id": 1, "severity_level": "Critical", "status": "Open"},
+            {"vulnerability_id": 2, "severity_level": "High", "status": "In Progress"},
+        ]},
+        "/logs": {"status": "success", "data": [
             {"id": index, "user_id": 1, "action": action, "timestamp": "2026-10-01T10:00:00Z",
-             "severity": "information", "related_service": "users"}
+             "severity": "Information", "related_service": "users"}
             for index, action in enumerate([
-                "auth.login.succeeded", "auth.login.failed", "auth.login.failed", "users.created",
+                "login_success", "login_failed", "login_failed", "user_created",
             ], 1)
-        ],
+        ]},
     }
 
 
@@ -58,7 +61,7 @@ def test_all_report_statistics(reports_client, source_data, auth_headers):
         activity = client.get("/reports/activity", headers=headers).json()
         assert activity["total_user_activities"] == 4
         assert activity["login_attempts"] == 3 and activity["failed_login_attempts"] == 2
-        assert activity["most_performed_actions"][0] == {"action": "auth.login.failed", "count": 2}
+        assert activity["most_performed_actions"][0] == {"action": "login_failed", "count": 2}
         assert [item["id"] for item in activity["recent_activities"]] == [4, 3, 2, 1]
 
 
@@ -67,7 +70,12 @@ def test_all_report_statistics(reports_client, source_data, auth_headers):
     ("vulnerabilities", "total_vulnerabilities"), ("activity", "total_user_activities"),
 ])
 def test_empty_datasets(reports_client, auth_headers, path, total):
-    client, source = reports_client(lambda _: httpx.Response(200, json=[]))
+    payload = []
+    if path in {"incidents", "vulnerabilities"}:
+        payload = {"status": "success", "count": 0, path: []}
+    elif path == "activity":
+        payload = {"status": "success", "data": []}
+    client, source = reports_client(lambda _: httpx.Response(200, json=payload))
     with client, source:
         response = client.get(f"/reports/{path}", headers=auth_headers())
     assert response.status_code == 200 and response.json()[total] == 0
@@ -107,14 +115,14 @@ def test_timeout_and_invalid_json(reports_client, auth_headers):
             assert client.get("/reports/assets", headers=auth_headers()).status_code == status
 
 
-def test_source_size_and_record_limits(reports_client, settings, auth_headers):
+def test_source_size_and_record_limits(settings):
     for changes in ({"max_upstream_bytes": 1}, {"max_upstream_records": 1}):
-        client, source = reports_client(
-            lambda _: httpx.Response(200, json=[{"id": 1}, {"id": 2}]),
-            config=settings.model_copy(update=changes),
-        )
-        with client, source:
-            assert client.get("/reports/summary", headers=auth_headers()).status_code == 502
+        with httpx.Client(transport=httpx.MockTransport(
+            lambda _: httpx.Response(200, json={"status": "success", "data": [{"id": 1}, {"id": 2}]}),
+        )) as source:
+            with pytest.raises(ApiError) as failure:
+                SourceClient(settings.model_copy(update=changes), source, "original-user-token").fetch("users")
+            assert failure.value.status_code == 502
 
 
 @pytest.mark.parametrize("timestamp", ["2026-10-01T10:00:00", "invalid", 1])

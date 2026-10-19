@@ -56,18 +56,14 @@ def test_all_18_endpoints_role_matrix(
     }
     before = counts(db_engine)
     client = api_clients[service]
-    with httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, json=[]))) as source:
-        if service == "reports":
-            client.app.state.http_client.close()
-            client.app.state.http_client = source
-        response = client.request(method, path.format(id=identifier), json=bodies[body_key], headers=auth_headers(role))
+    response = client.request(method, path.format(id=identifier), json=bodies[body_key], headers=auth_headers(role))
     assert response.status_code == (success if role in allowed else 403), response.text
     after = counts(db_engine)
     if role not in allowed:
         assert before[:2] == after[:2]
         assert after[2] == before[2] + 1
         with Session(db_engine) as session:
-            assert session.scalar(select(AuditOutbox).order_by(AuditOutbox.created_at.desc())).action == "authorization.denied"
+            assert session.scalar(select(AuditOutbox).order_by(AuditOutbox.created_at.desc())).action == "unauthorized_access"
 
 
 def test_assets_persistence_update_search_and_errors(api_clients, db_engine, auth_headers, asset_body):
@@ -91,8 +87,8 @@ def test_assets_persistence_update_search_and_errors(api_clients, db_engine, aut
         assert client.get(path, headers=headers).status_code == 422
     assert client.get("/assets/999999", headers=headers).status_code == 404
     before = counts(db_engine)
-    assert client.post("/assets", json=asset_body | {"owner_id": 999999}, headers=headers).status_code == 422
-    assert client.put(f'/assets/{first["id"]}', json={"owner_id": 999999}, headers=headers).status_code == 422
+    assert client.post("/assets", json=asset_body | {"owner_id": 999999}, headers=headers).status_code == 404
+    assert client.put(f'/assets/{first["id"]}', json={"owner_id": 999999}, headers=headers).status_code == 404
     assert counts(db_engine) == before
     assert client.get(f'/assets/{first["id"]}', headers=headers).json()["owner_id"] == 2
 
@@ -169,7 +165,7 @@ def test_missing_auth_is_durably_audited_and_readiness(api_clients, db_engine):
     assert api_clients["assets"].get("/assets").status_code == 401
     with Session(db_engine) as session:
         entry = session.scalar(select(AuditOutbox))
-        assert entry.action == "authentication.denied" and entry.user_id is None
+        assert entry.action == "unauthorized_access" and entry.user_id is None
     for client in api_clients.values():
         assert client.get("/ready").status_code == 200
         assert client.get("/health").status_code == 200

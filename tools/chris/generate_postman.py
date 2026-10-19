@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def request(name, service, method, path, *, expected=200, body=None,
-            role="admin", capture=None, description=""):
+            role="admin", capture=None, description="", service_identity=None, service_key=None):
     tests = [f'pm.test("HTTP {expected}", () => pm.response.to.have.status({expected}));']
     if capture:
         tests += [
@@ -32,6 +32,11 @@ def request(name, service, method, path, *, expected=200, body=None,
     if body is not None:
         definition["request"]["header"].append({"key": "Content-Type", "value": "application/json"})
         definition["request"]["body"] = {"mode": "raw", "raw": body, "options": {"raw": {"language": "json"}}}
+    if service_identity:
+        definition["request"]["header"] += [
+            {"key": "X-Service-Name", "value": service_identity},
+            {"key": "X-Service-Key", "value": service_key},
+        ]
     return definition
 
 
@@ -56,6 +61,23 @@ def main():
         request("Update asset", "assets", "PUT", "/assets/{{asset_id}}", body='{"status":"under_maintenance","criticality":"critical"}', description="Change status and criticality; compare persisted state."),
         request("Denied employee asset deletion", "assets", "DELETE", "/assets/{{asset_id}}", expected=403, role="employee", description="Negative test: employee cannot delete; original record remains."),
         request("Invalid asset input", "assets", "POST", "/assets", expected=422, body='{"name":"","ip_address":"invalid"}', description="Negative test: missing required information and invalid IP."),
+        request("Incident service asset lookup", "assets", "GET", "/internal/assets/{{asset_id}}", role=None,
+                service_identity="incidents", service_key="{{incidents_service_key}}",
+                description="v1 internal reference API: Incidents service key, no user token. Returns status/data with id, name, criticality, owner_id."),
+        request("Vulnerability service asset lookup", "assets", "GET", "/internal/assets/{{asset_id}}", role=None,
+                service_identity="vulnerabilities", service_key="{{vulnerabilities_service_key}}",
+                description="v1 internal reference API: Vulnerabilities service key; no user-role bypass on public routes."),
+        request("Reject invalid internal service key", "assets", "GET", "/internal/assets/{{asset_id}}", role=None, expected=401,
+                service_identity="incidents", service_key="invalid-test-key",
+                description="Internal lookup rejects invalid credentials and durably queues unauthorized_access."),
+        request("Reject unscoped internal service", "assets", "GET", "/internal/assets/{{asset_id}}", role=None, expected=403,
+                service_identity="reports", service_key="{{reports_service_key}}",
+                description="A valid Reports service key cannot use the lookup reserved for Incidents/Vulnerabilities."),
+        request("User JWT cannot replace internal service key", "assets", "GET", "/internal/assets/{{asset_id}}", expected=401,
+                description="Administrator JWT alone cannot authenticate a service-only lookup."),
+        request("Unknown internal asset reference", "assets", "GET", "/internal/assets/{{missing_asset_id}}", role=None, expected=404,
+                service_identity="incidents", service_key="{{incidents_service_key}}",
+                description="Set missing_asset_id to an actually absent positive ID; a valid service caller receives 404."),
         request("Delete asset", "assets", "DELETE", "/assets/{{asset_id}}", expected=204, description="Delete the unreferenced lab asset after capturing its evidence. Referenced assets return 409."),
     ]
     threats = [
@@ -80,14 +102,15 @@ def main():
     variables = {
         "assets_base_url": "http://localhost:8002", "threats_base_url": "http://localhost:8004",
         "reports_base_url": "http://localhost:8006", "asset_owner_id": "1", "asset_id": "0",
-        "threat_id": "0", "threat_value": "investigation.example",
+        "threat_id": "0", "threat_value": "investigation.example", "missing_asset_id": "9223372036854775807",
         "admin_token": "", "analyst_token": "", "auditor_token": "", "employee_token": "",
+        "incidents_service_key": "", "vulnerabilities_service_key": "", "reports_service_key": "",
     }
     collection = {
         "info": {
             "name": "Chris Gharfine - Sprint I Assets, Threats and Reports",
             "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-            "description": "18 prescribed endpoints plus negative requests. Request templates only: no saved responses or execution evidence. Set real shared-identity tokens locally; never export them. Run writes only against a disposable lab dataset. Obtain an existing owner ID first. Report tests need the real source services. Capture report evidence before deleting the demonstration records, or create additional fixtures through the real APIs.",
+            "description": "team-integration-v1.0.0: 18 prescribed endpoints, negative requests and scoped internal Assets checks. Request templates only: no saved responses or execution evidence. Use actual Users-issued v1 HS256 tokens with required issuer/audience/type; roles/status are checked through Users on each request. Set real service keys locally; never export tokens or keys. Run writes only against a disposable lab dataset. Obtain an active existing owner ID first. Report tests need real sources and complete v1 envelopes. Capture report evidence before deleting demonstration records, or create additional records through real APIs. Reuse a token after changing a dedicated test user's role/status in Users to demonstrate current authorization.",
         },
         "variable": [{"key": key, "value": value, "type": "string"} for key, value in variables.items()],
         "item": [

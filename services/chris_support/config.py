@@ -10,25 +10,28 @@ class Settings(BaseSettings):
 
     database_url: str = Field(repr=False)
     jwt_verification_key: SecretStr
-    jwt_algorithm: Literal["RS256", "ES256", "EdDSA", "HS256"] = "RS256"
-    jwt_issuer: str = Field(min_length=1)
-    jwt_audience: str = Field(min_length=1)
-    jwt_role_claim: str = "role"
-    jwt_account_status_claim: str = "account_status"
-    jwt_active_status: str = "active"
-    http_timeout_seconds: float = Field(default=5, gt=0, le=60)
-    max_upstream_bytes: int = Field(default=5_000_000, ge=1, le=100_000_000)
-    max_upstream_records: int = Field(default=50_000, ge=1, le=1_000_000)
-    recent_limit: int = Field(default=10, ge=1, le=100)
-    users_url: str = "http://users:8000"
-    assets_url: str = "http://assets:8000"
-    incidents_url: str = "http://incidents:8000"
-    threats_url: str = "http://threats:8000"
-    audit_url: str = "http://audit:8000"
-    vulnerabilities_url: str = "http://vulnerabilities:8000"
-    audit_service_token: SecretStr | None = None
-    login_success_action: str = "auth.login.succeeded"
-    login_failure_action: str = "auth.login.failed"
+    jwt_algorithm: Literal["HS256"] = "HS256"
+    jwt_issuer: str = Field(default="security-sprint1-users", min_length=1)
+    jwt_audience: str = Field(default="security-sprint1-services", min_length=1)
+    http_timeout_seconds: float = Field(default=5, gt=0, le=5)
+    max_upstream_bytes: int = Field(default=5_000_000, ge=1, le=5_000_000)
+    max_upstream_records: int = Field(default=50_000, ge=1, le=50_000)
+    recent_limit: int = Field(default=10, ge=1, le=10)
+    users_url: str = "http://127.0.0.1:8001/api/natalio-hassoun"
+    assets_url: str = "http://127.0.0.1:8002"
+    incidents_url: str = "http://127.0.0.1:8003"
+    threats_url: str = "http://127.0.0.1:8004"
+    audit_url: str = "http://127.0.0.1:8005/api/natalio-hassoun"
+    vulnerabilities_url: str = "http://127.0.0.1:8007"
+    service_tokens: dict[str, SecretStr] = Field(default_factory=dict, repr=False)
+    login_success_action: str = "login_success"
+    login_failure_action: str = "login_failed"
+
+    def service_key(self, service_name: str) -> str:
+        key = self.service_tokens.get(service_name)
+        if key is None:
+            raise ValueError("Required service credentials are not configured")
+        return key.get_secret_value()
 
     @field_validator("database_url")
     @classmethod
@@ -47,8 +50,11 @@ class Settings(BaseSettings):
         from urllib.parse import urlsplit
 
         parsed = urlsplit(value)
+        # Accessing .port validates malformed/non-numeric ports eagerly.
+        parsed.port
         if (parsed.scheme not in {"http", "https"} or not parsed.hostname
-                or parsed.username or parsed.password or parsed.query or parsed.fragment):
+                or parsed.username or parsed.password or parsed.query or parsed.fragment
+                or any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in value)):
             raise ValueError("Service URLs require HTTP(S), a host, and no credentials/query/fragment")
         return value.rstrip("/")
 
@@ -57,24 +63,20 @@ class Settings(BaseSettings):
         key = self.jwt_verification_key.get_secret_value()
         if not key.strip():
             raise ValueError("JWT verification material must be configured")
-        if self.jwt_algorithm == "HS256" and (len(key.encode()) < 32 or "-----BEGIN" in key):
+        if len(key.encode()) < 32 or "-----BEGIN" in key:
             raise ValueError("HS256 requires a symmetric key of at least 32 bytes")
-        if self.jwt_algorithm != "HS256":
-            from cryptography.hazmat.primitives.asymmetric import ec, ed25519, ed448, rsa
-            from cryptography.hazmat.primitives.serialization import load_pem_public_key
-
-            try:
-                public_key = load_pem_public_key(key.encode())
-            except (ValueError, TypeError):
-                raise ValueError("Configure a PEM public verification key for the chosen algorithm") from None
-            valid = (
-                self.jwt_algorithm == "RS256" and isinstance(public_key, rsa.RSAPublicKey)
-                or self.jwt_algorithm == "ES256" and isinstance(public_key, ec.EllipticCurvePublicKey)
-                and isinstance(public_key.curve, ec.SECP256R1)
-                or self.jwt_algorithm == "EdDSA" and isinstance(public_key, (ed25519.Ed25519PublicKey, ed448.Ed448PublicKey))
-            )
-            if not valid:
-                raise ValueError("JWT algorithm and public key type do not match")
+        known_services = {
+            "users", "assets", "incidents", "threats", "logs", "reports",
+            "vulnerabilities", "notifications", "playbooks",
+        }
+        if set(self.service_tokens) - known_services:
+            raise ValueError("Service credentials contain an unknown service name")
+        keys = [value.get_secret_value() for value in self.service_tokens.values()]
+        if any(not 32 <= len(value) <= 8192 or not value.isascii()
+               or any(not 33 <= ord(char) <= 126 for char in value) for value in keys):
+            raise ValueError("Service keys require 32 to 8192 printable ASCII characters without spaces")
+        if len(set(keys)) != len(keys) or key in keys:
+            raise ValueError("Service keys must be distinct from each other and the JWT secret")
         if self.login_success_action == self.login_failure_action:
             raise ValueError("Login success and failure action names must differ")
         return self

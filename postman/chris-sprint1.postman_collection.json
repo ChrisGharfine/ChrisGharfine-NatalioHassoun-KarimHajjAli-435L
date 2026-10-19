@@ -2,7 +2,7 @@
   "info": {
     "name": "Chris Gharfine - Sprint I Assets, Threats and Reports",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "18 prescribed endpoints plus negative requests. Request templates only: no saved responses or execution evidence. Set real shared-identity tokens locally; never export them. Run writes only against a disposable lab dataset. Obtain an existing owner ID first. Report tests need the real source services. Capture report evidence before deleting the demonstration records, or create additional fixtures through the real APIs."
+    "description": "team-integration-v1.0.0: 18 prescribed endpoints, negative requests and scoped internal Assets checks. Request templates only: no saved responses or execution evidence. Use actual Users-issued v1 HS256 tokens with required issuer/audience/type; roles/status are checked through Users on each request. Set real service keys locally; never export tokens or keys. Run writes only against a disposable lab dataset. Obtain an active existing owner ID first. Report tests need real sources and complete v1 envelopes. Capture report evidence before deleting demonstration records, or create additional records through real APIs. Reuse a token after changing a dedicated test user's role/status in Users to demonstrate current authorization."
   },
   "variable": [
     {
@@ -41,6 +41,11 @@
       "type": "string"
     },
     {
+      "key": "missing_asset_id",
+      "value": "9223372036854775807",
+      "type": "string"
+    },
+    {
       "key": "admin_token",
       "value": "",
       "type": "string"
@@ -57,6 +62,21 @@
     },
     {
       "key": "employee_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "incidents_service_key",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vulnerabilities_service_key",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reports_service_key",
       "value": "",
       "type": "string"
     }
@@ -347,6 +367,225 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Incident service asset lookup",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "incidents"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{incidents_service_key}}"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{asset_id}}",
+            "description": "Chris Gharfine — v1 internal reference API: Incidents service key, no user token. Returns status/data with id, name, criticality, owner_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vulnerability service asset lookup",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "vulnerabilities"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{vulnerabilities_service_key}}"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{asset_id}}",
+            "description": "Chris Gharfine — v1 internal reference API: Vulnerabilities service key; no user-role bypass on public routes."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject invalid internal service key",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "incidents"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "invalid-test-key"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{asset_id}}",
+            "description": "Chris Gharfine — Internal lookup rejects invalid credentials and durably queues unauthorized_access."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject unscoped internal service",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "reports"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{reports_service_key}}"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{asset_id}}",
+            "description": "Chris Gharfine — A valid Reports service key cannot use the lookup reserved for Incidents/Vulnerabilities."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "User JWT cannot replace internal service key",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{asset_id}}",
+            "description": "Chris Gharfine — Administrator JWT alone cannot authenticate a service-only lookup."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown internal asset reference",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "incidents"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{incidents_service_key}}"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{missing_asset_id}}",
+            "description": "Chris Gharfine — Set missing_asset_id to an actually absent positive ID; a valid service caller receives 404."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
                   "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }

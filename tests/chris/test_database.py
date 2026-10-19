@@ -11,9 +11,11 @@ from alembic.migration import MigrationContext
 from sqlalchemy import CheckConstraint, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
+from fastapi.testclient import TestClient
 
 from services.chris_support.audit import AuditOutbox, enqueue
 from services.chris_support.audit_worker import deliver_batch
+from services.chris_support.app import create_app
 from services.chris_support.database import Base, utcnow
 
 
@@ -31,6 +33,24 @@ def test_migration_requires_real_users_table(empty_db_engine, monkeypatch):
         inspector = inspect(connection)
         assert inspector.has_table("threats") and inspector.has_table("chris_audit_outbox")
         assert not inspector.has_table("users") and not inspector.has_table("assets")
+
+
+@pytest.mark.parametrize("service", ["assets", "threats", "reports"])
+def test_readiness_requires_v1_delivery_migration(empty_db_engine, settings, service, monkeypatch):
+    monkeypatch.setenv("CHRIS_DATABASE_URL", empty_db_engine.url.render_as_string(hide_password=False))
+    config = Config("services/chris_support/alembic.ini")
+    with empty_db_engine.begin() as connection:
+        # External Users fixture, confined to this test's random schema.
+        connection.execute(text("CREATE TABLE users (id INTEGER PRIMARY KEY)"))
+        config.attributes["connection"] = connection
+        command.upgrade(config, "chris_0002")
+    app = create_app(service, settings=settings, engine=empty_db_engine)
+    with TestClient(app) as client:
+        assert client.get("/ready").status_code == 503
+        with empty_db_engine.begin() as connection:
+            config.attributes["connection"] = connection
+            command.upgrade(config, "head")
+        assert client.get("/ready").status_code == 200
 
 
 def test_schema_foreign_key_and_unique_constraint(db_engine, monkeypatch):
@@ -74,13 +94,14 @@ def test_postgres_rejects_invalid_values_outside_api(db_engine, column, value):
 
 def test_outbox_delivery_retry_and_idempotency(db_engine, settings):
     factory = sessionmaker(bind=db_engine)
-    settings = settings.model_copy(update={"audit_service_token": type(settings.jwt_verification_key)("test-service-credential")})
     with factory.begin() as session:
         enqueue(session, user_id=1, action="assets.created", service="assets", description="Test event")
     requests = []
     def handler(request):
         requests.append(request)
-        return httpx.Response(503, json={}) if len(requests) == 1 else httpx.Response(201, json={"id": 5})
+        return httpx.Response(503, json={}) if len(requests) == 1 else httpx.Response(201, json={
+            "status": "success", "data": {"event_id": request.headers["idempotency-key"], "duplicate": False, "log": {"id": 5}},
+        })
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         assert deliver_batch(factory, client, settings) == 0
         with factory.begin() as session:
@@ -91,7 +112,9 @@ def test_outbox_delivery_retry_and_idempotency(db_engine, settings):
         assert deliver_batch(factory, client, settings) == 1
         assert deliver_batch(factory, client, settings) == 0
     assert requests[0].headers["idempotency-key"] == requests[1].headers["idempotency-key"]
-    assert requests[0].headers["authorization"] == "Bearer test-service-credential"
+    assert "authorization" not in requests[0].headers
+    assert requests[0].headers["x-service-name"] == "assets"
+    assert requests[0].headers["x-service-key"] == settings.service_key("assets")
     with factory() as session:
         record = session.scalar(select(AuditOutbox))
         assert record.attempts == 2 and record.delivered_at is not None and record.last_error is None
@@ -104,7 +127,6 @@ def test_outbox_delivery_retry_and_idempotency(db_engine, settings):
 ])
 def test_invalid_audit_acknowledgments_remain_pending(db_engine, settings, response):
     factory = sessionmaker(bind=db_engine)
-    settings = settings.model_copy(update={"audit_service_token": type(settings.jwt_verification_key)("test")})
     with factory.begin() as session:
         enqueue(session, user_id=1, action="test", service="assets", description="Test")
     with httpx.Client(transport=httpx.MockTransport(lambda _: response)) as client:
@@ -115,7 +137,6 @@ def test_invalid_audit_acknowledgments_remain_pending(db_engine, settings, respo
 
 def test_concurrent_audit_workers_skip_locked_rows(db_engine, settings):
     factory = sessionmaker(bind=db_engine)
-    settings = settings.model_copy(update={"audit_service_token": type(settings.jwt_verification_key)("test")})
     with factory.begin() as session:
         for _ in range(2):
             enqueue(session, user_id=1, action="test", service="assets", description="Test")
@@ -124,7 +145,9 @@ def test_concurrent_audit_workers_skip_locked_rows(db_engine, settings):
     def handler(request):
         ids.append(request.headers["idempotency-key"])
         barrier.wait(timeout=10)
-        return httpx.Response(201, json={"id": 1})
+        return httpx.Response(201, json={"status": "success", "data": {
+            "event_id": request.headers["idempotency-key"], "duplicate": False, "log": {"id": 1},
+        }})
     def deliver():
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             return deliver_batch(factory, client, settings, batch_size=1)

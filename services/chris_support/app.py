@@ -30,9 +30,9 @@ def create_app(service_name: str, *, settings: Settings | None = None,
             engine.dispose()
 
     app = FastAPI(
-        title=f"{service_name.title()} Service - Chris Gharfine", version="1.0.0",
+        title=f"{service_name.title()} Service - Chris Gharfine", version="1.1.0",
         lifespan=lifespan,
-        description="Sprint I service. Team integration contracts remain provisional.",
+        description="Sprint I service implementing team-integration-v1.0.0.",
     )
     app.state.settings = settings
     app.state.service_name = service_name
@@ -42,7 +42,7 @@ def create_app(service_name: str, *, settings: Settings | None = None,
     install_error_handlers(app)
 
     if service_name == "assets":
-        from services.assets.routes import router
+        from services.assets.routes import internal_router, router
         from services.assets.models import Asset as readiness_model
     elif service_name == "threats":
         from services.threats.routes import router
@@ -53,6 +53,8 @@ def create_app(service_name: str, *, settings: Settings | None = None,
     else:
         raise ValueError("Unknown Chris service")
     app.include_router(router)
+    if service_name == "assets":
+        app.include_router(internal_router)
 
     @app.get("/health", tags=["operations"])
     def health():
@@ -61,7 +63,8 @@ def create_app(service_name: str, *, settings: Settings | None = None,
     @app.get("/ready", tags=["operations"])
     def ready():
         with app.state.session_factory() as session:
-            session.execute(select(AuditOutbox.id).limit(0))
+            # Require the v1 delivery columns too, not just the pre-v1 table ID.
+            session.execute(select(AuditOutbox).limit(0))
             session.execute(select(readiness_model.id).limit(0))
         return {"status": "ready", "service": service_name}
 

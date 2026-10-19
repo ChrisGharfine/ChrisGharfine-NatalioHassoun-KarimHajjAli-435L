@@ -1,5 +1,65 @@
 # Executed verification record (Chris Gharfine)
 
+## Current: team-integration-v1.0.0, 19 October 2026
+
+Implemented Chris's authorized v1 tasks on feature/chris. Assignment and attached
+v1 specification were read; repository/branch were verified clean before edits.
+No teammate implementation, shared target specification or main branch was changed.
+
+Final owned-suite command:
+
+```powershell
+.\tools\chris\run_tests.ps1
+```
+
+Result: **425 passed, 0 failed, 0 skipped**, plus 30 passing subtests, one existing
+Starlette TestClient deprecation warning; 38.19 seconds of pytest execution.
+The runner used a generated disposable PostgreSQL 17 container and isolated random
+schemas, then cleaned up the container. Latest local JUnit is ignored at
+.chris-runtime/latest-tests.xml. Earlier failing runs identified outdated test
+setup and review regressions; the result above is the final corrected execution.
+
+Coverage includes all 18 endpoint types/four roles; HS256 required claims and
+fresh authoritative identity; same-token state changes; scoped internal Assets
+keys/denials; real user-FK constraints and owner HTTP validation; exact report
+envelopes/fields/enums/counts/no-pagination/bounds; durable audit snapshots,
+legacy-row migration preservation, per-service credentials, receipt validation,
+permanent-failure recovery and concurrent delivery. Readiness rejects a missing
+chris_0003 migration. The 31 Postman templates cover the prescribed endpoints,
+negative cases and internal Assets checks, with blank exported tokens/keys.
+
+Most external-dependency cases use explicitly labeled HTTP/table fixtures. The
+real Chris-to-Chris HTTP tests use an explicit Users fixture. These tests do not
+establish that all teammates' actual code conforms.
+
+Separate actual interoperability execution passed:
+
+```powershell
+.\tools\chris\run_tests.ps1 -Python .chris-runtime/interop-venv/Scripts/python.exe -NatalioSource .chris-runtime/natalio-cb2728c
+```
+
+This used unchanged verified Natalio source cb2728c, native Users-issued JWTs,
+native Users/Logs APIs and Chris's three real HTTP services. It passed owner
+lookups/reassignment, scoped internal Assets calls, audit delivery/retry/conflict/
+deleted-log receipts, Assets/Threats/Activity report reconciliation, same-token
+role/suspension/reactivation/deletion behavior and historical owner preservation.
+The native factory received issuer/audience runtime overrides; this does not
+implement or certify Natalio's remaining v1 changes. See
+[natalio-interop.md](natalio-interop.md) for setup, scope and limitations.
+
+Packaging checks passed: pip check in Chris's environment; final local Docker
+image build chris-sprint1-local:integration-v1; Compose config --quiet with
+temporary generated verification settings; all three image imports/OpenAPI
+internal-route presence as non-root UID 10001. The image was not published.
+
+Remaining: actual Karim services and foreign references; all-nine-service
+summary/incident/vulnerability workflows and notifications; the full companion
+checker and real-team outage acceptance; deployed shared credentials/configuration;
+Postman/database screenshot evidence; professor route/Auditor-search clarifications.
+No all-nine-service check or screenshot is claimed passed using fixtures.
+
+## Historical pre-v1 execution (18 October 2026)
+
 Execution date: October 18, 2026 (Asia/Beirut). Scope: Chris's three Sprint I
 services on `feature/chris`, implementation commit `f405201`. These results record actual commands run in this
 workspace; they do not claim that the full nine-service system is integrated.

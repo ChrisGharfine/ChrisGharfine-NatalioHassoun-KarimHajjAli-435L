@@ -1,8 +1,11 @@
 from enum import StrEnum
+from typing import Annotated
 
-from pydantic import ConfigDict, IPvAnyAddress, field_validator, model_validator
+from pydantic import ConfigDict, Field, IPvAnyAddress, field_validator, model_validator
 
 from services.chris_support.schemas import InputModel, PositiveId, Severity, ShortText, UpdateModel
+
+OwnerId = Annotated[int, Field(strict=True, gt=0, le=2_147_483_647)]
 
 
 class AssetType(StrEnum):
@@ -43,7 +46,7 @@ class AssetCreate(IpValidation):
     asset_type: AssetType
     ip_address: IPvAnyAddress
     department: ShortText
-    owner_id: PositiveId
+    owner_id: OwnerId
     criticality: Severity
     operating_system: ShortText | None = None
     location: ShortText | None = None
@@ -55,7 +58,7 @@ class AssetUpdate(UpdateModel, IpValidation):
     asset_type: AssetType | None = None
     ip_address: IPvAnyAddress | None = None
     department: ShortText | None = None
-    owner_id: PositiveId | None = None
+    owner_id: OwnerId | None = None
     criticality: Severity | None = None
     operating_system: ShortText | None = None
     location: ShortText | None = None
@@ -69,6 +72,19 @@ class AssetUpdate(UpdateModel, IpValidation):
 class AssetRead(AssetCreate):
     model_config = ConfigDict(from_attributes=True, extra="ignore")
     id: PositiveId
+
+
+class AssetReference(InputModel):
+    model_config = ConfigDict(from_attributes=True, extra="ignore")
+    id: PositiveId
+    name: ShortText
+    criticality: Severity
+    owner_id: OwnerId
+
+
+class AssetReferenceResponse(InputModel):
+    status: str = "success"
+    data: AssetReference
 
 
 class AssetFilters(IpValidation):

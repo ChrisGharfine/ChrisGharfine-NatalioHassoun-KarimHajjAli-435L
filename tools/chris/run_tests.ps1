@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$Python,
-    [switch]$UnitOnly
+    [switch]$UnitOnly,
+    [string]$NatalioSource
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,12 +13,20 @@ $chrisContainer = 'chris-tests-' + [guid]::NewGuid().ToString('N').Substring(0,1
 $chrisContainerCreated = $false
 $chrisPreviousDatabaseUrl = $env:CHRIS_TEST_DATABASE_URL
 $chrisPreviousPostgresPassword = $env:POSTGRES_PASSWORD
+$chrisPreviousNatalioSource = $env:CHRIS_NATALIO_SOURCE
+if ($NatalioSource) {
+    if ($UnitOnly) { throw 'Natalio interoperability requires the disposable PostgreSQL test runtime.' }
+    $NatalioSource = [System.IO.Path]::GetFullPath($NatalioSource)
+    if (-not (Test-Path -LiteralPath (Join-Path $NatalioSource 'security_backend\__init__.py'))) {
+        throw 'NatalioSource must be an unchanged published source snapshot.'
+    }
+}
 $chrisTestExitCode = 1
 Push-Location -LiteralPath $chrisProjectRoot
 try {
     New-Item -ItemType Directory -Force -Path '.chris-runtime' | Out-Null
     if ($UnitOnly) {
-        & $Python -m pytest tests/chris/test_validation.py tests/chris/test_auth.py tests/chris/test_reports.py tests/chris/test_postman.py -q -p no:cacheprovider
+        & $Python -m pytest tests/chris/test_validation.py tests/chris/test_auth.py tests/chris/test_identity_assets.py tests/chris/test_report_sources.py tests/chris/test_reports.py tests/chris/test_audit_v1.py tests/chris/test_postman.py tests/chris/test_team_integration_checker.py -q -p no:cacheprovider
         $chrisTestExitCode = $LASTEXITCODE
     } else {
         $env:POSTGRES_PASSWORD = [guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')
@@ -37,12 +46,18 @@ try {
             throw 'Docker returned an invalid local port.'
         }
         $env:CHRIS_TEST_DATABASE_URL = "postgresql+psycopg://postgres:$($env:POSTGRES_PASSWORD)@127.0.0.1:$chrisPort/chris_test"
-        & $Python -m pytest tests/chris -q -p no:cacheprovider --junitxml=.chris-runtime/latest-tests.xml
+        if ($NatalioSource) {
+            $env:CHRIS_NATALIO_SOURCE = $NatalioSource
+            & $Python tools/chris/check_natalio_interop.py
+        } else {
+            & $Python -m pytest tests/chris -q -p no:cacheprovider --junitxml=.chris-runtime/latest-tests.xml
+        }
         $chrisTestExitCode = $LASTEXITCODE
     }
 } finally {
     $env:CHRIS_TEST_DATABASE_URL = $chrisPreviousDatabaseUrl
     $env:POSTGRES_PASSWORD = $chrisPreviousPostgresPassword
+    $env:CHRIS_NATALIO_SOURCE = $chrisPreviousNatalioSource
     if ($chrisContainerCreated) {
         if ($chrisContainer -notmatch '^chris-tests-[0-9a-f]{12}$') { throw 'Unexpected test container name; refusing cleanup.' }
         docker stop --time 5 $chrisContainer | Out-Null

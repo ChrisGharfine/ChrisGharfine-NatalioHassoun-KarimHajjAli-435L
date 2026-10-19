@@ -4,8 +4,9 @@ Chris's three services implement the 18 prescribed endpoints for Assets, Threat
 Intelligence, and Reports. They use FastAPI, SQLAlchemy, PostgreSQL, Alembic,
 Pydantic, shared JWT verification, and HTTPX. They do not implement another
 student's service or issue authentication tokens. The user approved this baseline;
-the other students still need to confirm the external contracts in
-[integration-contracts.md](integration-contracts.md).
+Chris's boundaries now implement [team-integration-v1.0.0](TEAM_INTEGRATION_V1.md).
+The real nine-service release gates remain separate from the owned tests; see
+[integration-contracts.md](integration-contracts.md) for current dependencies.
 
 ## Files and responsibilities (Chris Gharfine)
 
@@ -16,7 +17,7 @@ the other students still need to confirm the external contracts in
 | `services/reports` | Six HTTP aggregation routes and validated source contracts |
 | `services/chris_support` | Chris-owned JWT/error/database/audit adapters and migration runner |
 | `tests/chris` | Validation, role matrix, PostgreSQL, concurrency, audit, HTTP, and collection tests |
-| `postman/chris-sprint1.postman_collection.json` | 18 endpoints plus seven negative requests; no saved responses/tokens |
+| `postman/chris-sprint1.postman_collection.json` | 31 request templates: all 18 endpoints, negatives and internal Assets checks; no saved responses/tokens/keys |
 | `compose.chris.yaml` | Chris's runtime containers; optional local database and audit worker |
 
 ## Configuration and authentication
@@ -35,37 +36,39 @@ Python created the virtual environment. The runtime directory and environment
 files are ignored; no credentials are stored in tracked configuration.
 
 Set process environment variables using the team's actual connection and issuer
-configuration. The following are prompts/templates, not working credentials:
+configuration. A secret-free template is in
+[configuration.example.env](configuration.example.env). Python reads process
+environment; it does not load that template automatically. The following are
+prompts/templates, not working credentials:
 
 ```powershell
 $env:CHRIS_DATABASE_URL = Read-Host 'Approved postgresql+psycopg connection URL'
-$env:CHRIS_JWT_VERIFICATION_KEY = Get-Content -Raw '<path-to-shared-public-key.pem>'
-$env:CHRIS_JWT_ALGORITHM = 'RS256'
-$env:CHRIS_JWT_ISSUER = Read-Host 'Shared JWT issuer'
-$env:CHRIS_JWT_AUDIENCE = Read-Host 'Shared JWT audience'
+$env:CHRIS_JWT_VERIFICATION_KEY = Read-Host 'Locally supplied shared JWT secret (at least 32 bytes)'
+$env:CHRIS_JWT_ALGORITHM = 'HS256'
+$env:CHRIS_JWT_ISSUER = 'security-sprint1-users'
+$env:CHRIS_JWT_AUDIENCE = 'security-sprint1-services'
+$env:CHRIS_SERVICE_TOKENS = Read-Host 'JSON mapping of required service names to distinct registered keys'
 ```
 
-The default role claim is `role`, and the default account-status claim is
-`account_status` with the active value `active`. The issuer's exact role strings
-are `Security Administrator`, `Security Analyst`, `Regular Employee/User`, and
-`Auditor`. Configure alternate claim names with `CHRIS_JWT_ROLE_CLAIM` and
-`CHRIS_JWT_ACCOUNT_STATUS_CLAIM`; configure the active value with
-`CHRIS_JWT_ACTIVE_STATUS`. Role values require the documented team agreement.
+Only HS256 is accepted. Required claims: text positive user ID `sub` through
+2147483647, numeric `iat`/`exp`, configured `iss`/`aud`, and `type="access"`.
+Any `nbf` is validated; unsigned/other-algorithm/refresh tokens are rejected.
+JWT `role` and `account_status` are optional and never authorize a request.
 
-Tokens must be signed using the configured single algorithm/key and contain
-`sub`, `iss`, `aud`, `iat`, `exp`, role, and account status. The subject is a
-positive signed-64-bit integer encoded as a string. The verifier checks signature,
-issuer, audience, expiry, issuance time, any provided not-before claim, and active
-account status. It rejects missing, invalid, oversized, expired, inactive, and
-suspended credentials. It never chooses an algorithm from the token header.
-Supported configured algorithms are RS256, ES256, EdDSA, and HS256; asymmetric
-algorithms require a matching public key, and HS256 requires at least 32 bytes
-of shared secret material. Prefer the team's public-key verification convention.
+After local verification, every protected request calls Users'
+`POST /internal/identity/verify` with the original Bearer token and that resource
+service's `X-Service-Name`/`X-Service-Key`. The returned ID must match `sub`.
+Current roles are `security_administrator`, `security_analyst`,
+`regular_employee`, `auditor`. Inactive/deleted/suspended accounts are denied
+with `401`; permission failures return `403`; unavailable/malformed Users data
+fails closed with `503`. No cross-request identity cache is used.
 
-A signed status claim describes the account when the issuer minted the token.
-Immediate suspension/revocation of an already issued token requires Natalio's
-confirmed revocation or freshness contract; it is not implemented by guessing an
-identity endpoint. Do not treat that integration as verified.
+Service keys are distinct printable ASCII secrets of at least 32 bytes, separate
+from the JWT secret. Configure only the keys required by each process: Assets
+needs its own key and the accepted `incidents`/`vulnerabilities` inbound keys;
+Threats needs `threats`; Reports needs `reports`; a combined audit worker needs
+`assets`, `threats`, `reports`. Register matching identities in the real providers.
+Never share populated configuration or use the old audit Bearer token setting.
 
 ## Database and migration order
 
@@ -89,6 +92,10 @@ If Users is not ready, `upgrade chris_0001` installs only Threats and the outbox
 Reports need the outbox for durable denied-access logging. Migrations require only
 `CHRIS_DATABASE_URL`; they do not require a JWT key. Existing Users rows are not
 modified. `chris_alembic_version` avoids collision with another student's runner.
+The additive `chris_0003` migration adds `transport_payload` and `failed_at` for
+delivery snapshots/permanent failures. It preserves existing row IDs, original
+event data and delivered records. Always upgrade existing Chris deployments to
+head before starting the updated apps/worker; do not reset the database.
 
 Assets have a restrictive owner foreign key. Incidents and Vulnerabilities must
 also use restrictive asset foreign keys. A referenced asset cannot be deleted;
@@ -114,7 +121,10 @@ Reports uses configurable source base URLs: `CHRIS_USERS_URL`, `CHRIS_ASSETS_URL
 `CHRIS_INCIDENTS_URL`, `CHRIS_THREATS_URL`, `CHRIS_AUDIT_URL`, and
 `CHRIS_VULNERABILITIES_URL`. For local processes, set Assets to
 `http://127.0.0.1:8002` and Threats to `http://127.0.0.1:8004`, plus the actual URLs
-of the other students' services. Defaults use Docker service names on port 8000.
+of the other students' services. Host-run defaults are the exact v1 ports, with
+`/api/natalio-hassoun` included once in Users and Audit URLs. Compose uses its
+own service DNS names on port 8000 for Chris and host.docker.internal defaults
+for teammates running on host ports; override these for the actual team network.
 
 For containers, set the same environment with a database URL reachable inside
 Docker, then run:
@@ -155,12 +165,19 @@ the team's services to the agreed network or supply reachable service URLs.
 | `GET /assets` | `200` complete array, ordered by ID | Administrator, Auditor |
 | `GET /assets/{id}` | `200` complete object; missing ID `404` | Administrator, Analyst, Auditor |
 | `GET /assets/search` | `200` filtered array | Administrator, Analyst, Auditor |
+| `GET /internal/assets/{id}` | `200` success/data with id, name, criticality, owner_id; missing ID `404` | Incidents/Vulnerabilities service keys only |
 
 Search query parameters: `name`, `asset_type`, `ip_address`, `department`,
 `criticality`, and `status`. Combine supplied filters using AND. Name/department
 use case-insensitive literal substring matching; `%` and `_` are escaped. Other
 fields are exact matches after IP normalization. At least one criterion is
 required, so an empty analyst search does not bypass list permissions.
+Creation and an actual owner change also call Users' service-authenticated
+`GET /internal/users/{id}`. Unknown owner returns `404`; deleted/inactive owner
+returns `400`; invalid/unavailable Users data returns `503`. Existing FKs remain
+the race-condition guard. Internal Assets lookups do not accept a user JWT as a
+replacement for service credentials; invalid keys return `401`, other registered
+services return `403`, and denials are durably audited.
 
 ## Threat API contract (Chris Gharfine)
 
@@ -229,19 +246,36 @@ and role denials persist their own events before returning. If that persistence
 fails, the request fails closed with `503`. Auth failures have unknown `user_id`.
 Events do not contain submitted bodies, query strings, or bearer tokens.
 
-Run the separate delivery worker with an actual shared-identity service token:
+Run the separate delivery worker with the locally registered per-service keys:
 
 ```powershell
-$env:CHRIS_AUDIT_SERVICE_TOKEN = Read-Host 'Audit-write service token'
 .\.venv-chris\Scripts\python.exe -m services.chris_support.audit_worker
 ```
 
 Use `--once` for one batch, or the Compose `audit` profile for a persistent worker.
 PostgreSQL row locking with `SKIP LOCKED` permits concurrent workers. Failed
-deliveries remain pending with bounded exponential backoff. Delivery is at least
-once; Natalio must support the supplied event ID/idempotency key to deduplicate
-a retry after a worker crash. The exact event/acknowledgment contract is documented
-separately and has not been live-verified against Natalio's service.
+deliveries caused by outages remain pending with bounded exponential backoff.
+The worker posts to Audit `/internal/logs` with the matching originating service
+identity, stable UUID Idempotency-Key and five canonical fields. Old pending
+dotted actions/lower severities are mapped explicitly and snapshotted before
+network delivery. Original columns/UUIDs remain unchanged; retries reuse the
+frozen payload, including after an acknowledgment transaction fails.
+
+Receipts must match the UUID: `201` new/duplicate=false, `200` retry/duplicate=true.
+A retry receipt with log=null after legitimate deletion also succeeds. Invalid
+acknowledgments stay pending. Permanent input/credential failures set failed_at;
+IDEMPOTENCY_CONFLICT never loops forever. `--once` prints queue counts and exits
+nonzero while pending or failed work remains. After correcting credentials/input,
+explicitly requeue that service's recoverable failures:
+
+```powershell
+.\.venv-chris\Scripts\python.exe -m services.chris_support.audit_worker --retry-failed --service assets --once
+```
+
+Use threats/reports for their queues. UUID conflicts/invalid local payloads require
+operator review and are not automatically requeued. No whole business operation
+is replayed to recover logging. The current live verification scope is recorded
+in [verification.md](verification.md).
 
 To run all tests with a disposable PostgreSQL container and automatic cleanup:
 
@@ -258,7 +292,8 @@ double; they never create a production Users implementation. If no test database
 is configured, database-dependent tests skip rather than claim to pass. Windows
 sandbox restrictions may require Codex approval for asyncio's loopback sockets.
 
-Import the Postman collection and set its real role tokens locally. Set
+Import the Postman collection and set its real role tokens and internal service
+keys locally. Set
 `asset_owner_id` to an actual Users ID and use a disposable demonstration dataset.
 Creation requests capture the actual returned IDs. Run report evidence requests
 before deleting demonstration rows, or create additional real data. Never export

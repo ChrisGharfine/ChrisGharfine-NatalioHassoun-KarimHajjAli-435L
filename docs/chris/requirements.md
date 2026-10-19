@@ -5,8 +5,9 @@ Threat Intelligence, and Security Reports services. It summarizes the attached
 professor-provided Sprint I specification; it is not a copy of the assignment.
 The attachment remains the requirements authority. The user approved the baseline
 in [implementation-plan.md](implementation-plan.md), and Chris's services have
-been implemented. External team contracts remain pending as recorded in
-[integration-contracts.md](integration-contracts.md).
+been implemented. Chris's updated integration boundaries follow
+[team-integration-v1.0.0](TEAM_INTEGRATION_V1.md); real nine-service acceptance
+remains recorded in [integration-contracts.md](integration-contracts.md).
 
 ## Repository and ownership
 
