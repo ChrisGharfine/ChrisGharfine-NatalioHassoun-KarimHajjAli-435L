@@ -1,5 +1,10 @@
 # Integration contracts and remaining work (Chris Gharfine)
 
+For the selected team implementation target, use
+[TEAM_INTEGRATION_V1.md](TEAM_INTEGRATION_V1.md). This file describes Chris's
+earlier implemented behavior; its incompatible boundaries still need the owner
+changes specified in v1. Publishing v1 has not applied those runtime changes.
+
 These are the contracts implemented under Chris's user-approved baseline. They
 remain proposals for Natalio's and Karim's actual services. Automated source
 doubles validate Chris's adapters; they do not establish that the team already
