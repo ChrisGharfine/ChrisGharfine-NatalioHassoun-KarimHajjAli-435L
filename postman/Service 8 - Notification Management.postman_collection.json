@@ -1,0 +1,1434 @@
+{
+  "info": {
+    "_postman_id": "bb8450d1-6c18-40c3-8ab1-725f17de8491",
+    "name": "SIRMS - Service 8 - Notification and Alert Management (Karim Hajj Ali)",
+    "description": "Notification and Alert Management Service for the Security Incident Detection and Response Management System. Implemented by Karim Hajj Ali. Run the Authentication folder first to populate the tokens.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Authentication (run first)",
+      "description": "Logs in as each role and saves the tokens. Authentication belongs to Service 1 and is included here only so this collection can be run on its own.",
+      "item": [
+        {
+          "name": "Login as Security Administrator",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.environment.set(\"admin_token\", pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticates and stores the token in the 'admin_token' environment variable. Run this before the other requests.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"karim.admin\",\n  \"password\": \"Admin#2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "Authenticates and stores the token in the 'admin_token' environment variable. Run this before the other requests.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"karim.admin\",\n  \"password\": \"Admin#2026\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Login successful\",\n  \"status\": \"success\",\n  \"token\": \"47d9a4f699ad43c9b8501c0be31699a5\",\n  \"user\": {\n    \"full_name\": \"Karim Hajj Ali\",\n    \"role\": \"Security Administrator\",\n    \"user_id\": 1,\n    \"username\": \"karim.admin\"\n  }\n}"
+            },
+            {
+              "name": "401 UNAUTHORIZED (wrong password)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "Authentication failure case.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"karim.admin\",\n  \"password\": \"wrong-password\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "UNAUTHORIZED",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Invalid username or password\",\n  \"status\": \"error\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Login as Security Analyst",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.environment.set(\"analyst_token\", pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticates and stores the token in the 'analyst_token' environment variable. Run this before the other requests.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"rana.analyst\",\n  \"password\": \"Analyst#2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "Authenticates and stores the token in the 'analyst_token' environment variable. Run this before the other requests.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"rana.analyst\",\n  \"password\": \"Analyst#2026\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Login successful\",\n  \"status\": \"success\",\n  \"token\": \"8f4a344f2bd246db9f7e1cb378071ceb\",\n  \"user\": {\n    \"full_name\": \"Rana Khoury\",\n    \"role\": \"Security Analyst\",\n    \"user_id\": 2,\n    \"username\": \"rana.analyst\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Login as Regular Employee",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.environment.set(\"employee_token\", pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticates and stores the token in the 'employee_token' environment variable. Run this before the other requests.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"lina.employee\",\n  \"password\": \"Employee#2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "Authenticates and stores the token in the 'employee_token' environment variable. Run this before the other requests.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"lina.employee\",\n  \"password\": \"Employee#2026\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Login successful\",\n  \"status\": \"success\",\n  \"token\": \"e47a3144cc26492ca85764fcfeefa384\",\n  \"user\": {\n    \"full_name\": \"Lina Haddad\",\n    \"role\": \"Regular Employee\",\n    \"user_id\": 4,\n    \"username\": \"lina.employee\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Login as Auditor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.environment.set(\"auditor_token\", pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticates and stores the token in the 'auditor_token' environment variable. Run this before the other requests.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"samir.auditor\",\n  \"password\": \"Auditor#2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "Authenticates and stores the token in the 'auditor_token' environment variable. Run this before the other requests.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"samir.auditor\",\n  \"password\": \"Auditor#2026\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Login successful\",\n  \"status\": \"success\",\n  \"token\": \"daba6a670728456188288cb3f070f6ee\",\n  \"user\": {\n    \"full_name\": \"Samir Fares\",\n    \"role\": \"Auditor\",\n    \"user_id\": 5,\n    \"username\": \"samir.auditor\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Service 8 - Notification and Alert Management",
+      "item": [
+        {
+          "name": "1. Create Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            },
+            "description": "Creates a notification for a user. Administrators only. Notifications are also generated automatically by Service 3 when an incident is assigned, and by Service 7 when a High or Critical vulnerability is registered.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 3,\n  \"title\": \"Quarterly access review due\",\n  \"message\": \"Please review the access rights for the systems you administer.\",\n  \"notification_type\": \"System Notification\",\n  \"severity\": \"Low\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 CREATED",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications"
+                  ]
+                },
+                "description": "Creates a notification for a user. Administrators only. Notifications are also generated automatically by Service 3 when an incident is assigned, and by Service 7 when a High or Critical vulnerability is registered.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_id\": 3,\n  \"title\": \"Quarterly access review due\",\n  \"message\": \"Please review the access rights for the systems you administer.\",\n  \"notification_type\": \"System Notification\",\n  \"severity\": \"Low\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "CREATED",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Notification created successfully\",\n  \"notification\": {\n    \"creation_date\": \"2026-10-18T17:34:53\",\n    \"message\": \"Please review the access rights for the systems you administer.\",\n    \"notification_id\": 4,\n    \"notification_type\": \"System Notification\",\n    \"read_date\": null,\n    \"severity_level\": \"Low\",\n    \"status\": \"Unread\",\n    \"title\": \"Quarterly access review due\",\n    \"user_id\": 3\n  },\n  \"status\": \"success\"\n}"
+            },
+            {
+              "name": "400 Bad Request (invalid type)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications"
+                  ]
+                },
+                "description": "Creates a notification for a user. Administrators only. Notifications are also generated automatically by Service 3 when an incident is assigned, and by Service 7 when a High or Critical vulnerability is registered.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_id\": 3,\n  \"title\": \"Test\",\n  \"message\": \"Test\",\n  \"notification_type\": \"Carrier Pigeon\",\n  \"severity\": \"Low\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "BAD REQUEST",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"'notification_type' must be one of: Incident Assignment, Security Alert, System Notification, Threat Alert, Vulnerability Alert\",\n  \"status\": \"error\"\n}"
+            },
+            {
+              "name": "404 Not Found (unknown recipient)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications"
+                  ]
+                },
+                "description": "Creates a notification for a user. Administrators only. Notifications are also generated automatically by Service 3 when an incident is assigned, and by Service 7 when a High or Critical vulnerability is registered.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_id\": 9999,\n  \"title\": \"Test\",\n  \"message\": \"Test\",\n  \"notification_type\": \"Security Alert\",\n  \"severity\": \"Low\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "NOT FOUND",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"No user with id 9999 exists\",\n  \"status\": \"error\"\n}"
+            },
+            {
+              "name": "403 Forbidden (analyst may not create)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{analyst_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications"
+                  ]
+                },
+                "description": "Creates a notification for a user. Administrators only. Notifications are also generated automatically by Service 3 when an incident is assigned, and by Service 7 when a High or Critical vulnerability is registered.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_id\": 3,\n  \"title\": \"Test\",\n  \"message\": \"Test\",\n  \"notification_type\": \"Security Alert\",\n  \"severity\": \"Low\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "FORBIDDEN",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"User does not have permission to perform this operation\",\n  \"status\": \"error\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "2. Retrieve User Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/user/2",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "user",
+                "2"
+              ]
+            },
+            "description": "Returns one user's notifications, newest first, with a count of how many are unread. Analysts and employees may only read their own inbox; administrators and auditors may read any."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/user/2",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "user",
+                    "2"
+                  ]
+                },
+                "description": "Returns one user's notifications, newest first, with a count of how many are unread. Analysts and employees may only read their own inbox; administrators and auditors may read any."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"count\": 1,\n  \"notifications\": [\n    {\n      \"creation_date\": \"2026-10-18T17:34:52\",\n      \"message\": \"You have been assigned incident 'Ransomware detected on domain controller' (severity Critical). Current status: Open.\",\n      \"notification_id\": 1,\n      \"notification_type\": \"Incident Assignment\",\n      \"read_date\": null,\n      \"severity_level\": \"Critical\",\n      \"status\": \"Unread\",\n      \"title\": \"Incident #1 assigned to you\",\n      \"user_id\": 2\n    }\n  ],\n  \"status\": \"success\",\n  \"unread\": 1\n}"
+            },
+            {
+              "name": "200 OK (empty inbox)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/user/5",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "user",
+                    "5"
+                  ]
+                },
+                "description": "Returns one user's notifications, newest first, with a count of how many are unread. Analysts and employees may only read their own inbox; administrators and auditors may read any."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"count\": 0,\n  \"notifications\": [],\n  \"status\": \"success\",\n  \"unread\": 0\n}"
+            },
+            {
+              "name": "404 Not Found (unknown user)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/user/9999",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "user",
+                    "9999"
+                  ]
+                },
+                "description": "Returns one user's notifications, newest first, with a count of how many are unread. Analysts and employees may only read their own inbox; administrators and auditors may read any."
+              },
+              "status": "NOT FOUND",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"No user with id 9999 exists\",\n  \"status\": \"error\"\n}"
+            },
+            {
+              "name": "403 Forbidden (analyst reading another inbox)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{analyst_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/user/4",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "user",
+                    "4"
+                  ]
+                },
+                "description": "Returns one user's notifications, newest first, with a count of how many are unread. Analysts and employees may only read their own inbox; administrators and auditors may read any."
+              },
+              "status": "FORBIDDEN",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"User does not have permission to perform this operation\",\n  \"status\": \"error\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "3. Retrieve Specific Notification",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "1"
+              ]
+            },
+            "description": "Returns one notification by id."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "1"
+                  ]
+                },
+                "description": "Returns one notification by id."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"notification\": {\n    \"creation_date\": \"2026-10-18T17:34:52\",\n    \"message\": \"You have been assigned incident 'Ransomware detected on domain controller' (severity Critical). Current status: Open.\",\n    \"notification_id\": 1,\n    \"notification_type\": \"Incident Assignment\",\n    \"read_date\": null,\n    \"severity_level\": \"Critical\",\n    \"status\": \"Unread\",\n    \"title\": \"Incident #1 assigned to you\",\n    \"user_id\": 2\n  },\n  \"status\": \"success\"\n}"
+            },
+            {
+              "name": "404 Not Found (unknown id)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/9999",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "9999"
+                  ]
+                },
+                "description": "Returns one notification by id."
+              },
+              "status": "NOT FOUND",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"No notification with id 9999 exists\",\n  \"status\": \"error\"\n}"
+            },
+            {
+              "name": "403 Forbidden (not the recipient)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{employee_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "1"
+                  ]
+                },
+                "description": "Returns one notification by id."
+              },
+              "status": "FORBIDDEN",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"User does not have permission to perform this operation\",\n  \"status\": \"error\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "4. Mark Notification as Read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{analyst_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/1/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "1",
+                "read"
+              ]
+            },
+            "description": "Marks a notification as read and stamps the read date. Marking an already-read notification again leaves the original date alone. Auditors are read-only and cannot call this."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{analyst_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/1/read",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "1",
+                    "read"
+                  ]
+                },
+                "description": "Marks a notification as read and stamps the read date. Marking an already-read notification again leaves the original date alone. Auditors are read-only and cannot call this."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Notification marked as read\",\n  \"notification\": {\n    \"creation_date\": \"2026-10-18T17:34:52\",\n    \"message\": \"You have been assigned incident 'Ransomware detected on domain controller' (severity Critical). Current status: Open.\",\n    \"notification_id\": 1,\n    \"notification_type\": \"Incident Assignment\",\n    \"read_date\": \"2026-10-18T17:34:53\",\n    \"severity_level\": \"Critical\",\n    \"status\": \"Read\",\n    \"title\": \"Incident #1 assigned to you\",\n    \"user_id\": 2\n  },\n  \"status\": \"success\"\n}"
+            },
+            {
+              "name": "200 OK (already read, date unchanged)",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{analyst_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/1/read",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "1",
+                    "read"
+                  ]
+                },
+                "description": "Marks a notification as read and stamps the read date. Marking an already-read notification again leaves the original date alone. Auditors are read-only and cannot call this."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Notification was already read\",\n  \"notification\": {\n    \"creation_date\": \"2026-10-18T17:34:52\",\n    \"message\": \"You have been assigned incident 'Ransomware detected on domain controller' (severity Critical). Current status: Open.\",\n    \"notification_id\": 1,\n    \"notification_type\": \"Incident Assignment\",\n    \"read_date\": \"2026-10-18T17:34:53\",\n    \"severity_level\": \"Critical\",\n    \"status\": \"Read\",\n    \"title\": \"Incident #1 assigned to you\",\n    \"user_id\": 2\n  },\n  \"status\": \"success\"\n}"
+            },
+            {
+              "name": "403 Forbidden (auditor is read-only)",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auditor_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/1/read",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "1",
+                    "read"
+                  ]
+                },
+                "description": "Marks a notification as read and stamps the read date. Marking an already-read notification again leaves the original date alone. Auditors are read-only and cannot call this."
+              },
+              "status": "FORBIDDEN",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"User does not have permission to perform this operation\",\n  \"status\": \"error\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "5. Search Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/search?status=Unread",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Unread"
+                }
+              ]
+            },
+            "description": "Searches by user, type, severity and status. An analyst's search is silently restricted to their own inbox, so the filter cannot be used to read somebody else's notifications."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/search?status=Unread",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "Unread"
+                    }
+                  ]
+                },
+                "description": "Searches by user, type, severity and status. An analyst's search is silently restricted to their own inbox, so the filter cannot be used to read somebody else's notifications."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"count\": 3,\n  \"filters_applied\": {\n    \"notification_type\": null,\n    \"severity\": null,\n    \"status\": \"Unread\",\n    \"user_id\": null\n  },\n  \"notifications\": [\n    {\n      \"creation_date\": \"2026-10-18T17:34:53\",\n      \"message\": \"Please review the access rights for the systems you administer.\",\n      \"notification_id\": 4,\n      \"notification_type\": \"System Notification\",\n      \"read_date\": null,\n      \"severity_level\": \"Low\",\n      \"status\": \"Unread\",\n      \"title\": \"Quarterly access review due\",\n      \"user_id\": 3\n    },\n    {\n      \"creation_date\": \"2026-10-18T17:34:52\",\n      \"message\": \"'Unpatched SMB signing on file server' was found on your asset 'Finance File Server'. CVE: CVE-2024-21345. CVSS score: 8.1.\",\n      \"notification_id\": 3,\n      \"notification_type\": \"Vulnerability Alert\",\n      \"read_date\": null,\n      \"severity_level\": \"High\",\n      \"status\": \"Unread\",\n      \"title\": \"High vulnerability on Finance File Server\",\n      \"user_id\": 4\n    },\n    {\n      \"creation_date\": \"2026-10-18T17:34:52\",\n      \"message\": \"'Remote code execution in XZ Utils' was found on your asset 'Finance File Server'. CVE: CVE-2024-3094. CVSS score: 10.0.\",\n      \"notification_id\": 2,\n      \"notification_type\": \"Vulnerability Alert\",\n      \"read_date\": null,\n      \"severity_level\": \"Critical\",\n      \"status\": \"Unread\",\n      \"title\": \"Critical vulnerability on Finance File Server\",\n      \"user_id\": 4\n    }\n  ],\n  \"status\": \"success\"\n}"
+            },
+            {
+              "name": "200 OK (by type)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/search?notification_type=Incident%20Assignment",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "notification_type",
+                      "value": "Incident Assignment"
+                    }
+                  ]
+                },
+                "description": "Searches by user, type, severity and status. An analyst's search is silently restricted to their own inbox, so the filter cannot be used to read somebody else's notifications."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"count\": 1,\n  \"filters_applied\": {\n    \"notification_type\": \"Incident Assignment\",\n    \"severity\": null,\n    \"status\": null,\n    \"user_id\": null\n  },\n  \"notifications\": [\n    {\n      \"creation_date\": \"2026-10-18T17:34:52\",\n      \"message\": \"You have been assigned incident 'Ransomware detected on domain controller' (severity Critical). Current status: Open.\",\n      \"notification_id\": 1,\n      \"notification_type\": \"Incident Assignment\",\n      \"read_date\": \"2026-10-18T17:34:53\",\n      \"severity_level\": \"Critical\",\n      \"status\": \"Read\",\n      \"title\": \"Incident #1 assigned to you\",\n      \"user_id\": 2\n    }\n  ],\n  \"status\": \"success\"\n}"
+            },
+            {
+              "name": "200 OK (by severity)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/search?severity=Critical",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "severity",
+                      "value": "Critical"
+                    }
+                  ]
+                },
+                "description": "Searches by user, type, severity and status. An analyst's search is silently restricted to their own inbox, so the filter cannot be used to read somebody else's notifications."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"count\": 2,\n  \"filters_applied\": {\n    \"notification_type\": null,\n    \"severity\": \"Critical\",\n    \"status\": null,\n    \"user_id\": null\n  },\n  \"notifications\": [\n    {\n      \"creation_date\": \"2026-10-18T17:34:52\",\n      \"message\": \"'Remote code execution in XZ Utils' was found on your asset 'Finance File Server'. CVE: CVE-2024-3094. CVSS score: 10.0.\",\n      \"notification_id\": 2,\n      \"notification_type\": \"Vulnerability Alert\",\n      \"read_date\": null,\n      \"severity_level\": \"Critical\",\n      \"status\": \"Unread\",\n      \"title\": \"Critical vulnerability on Finance File Server\",\n      \"user_id\": 4\n    },\n    {\n      \"creation_date\": \"2026-10-18T17:34:52\",\n      \"message\": \"You have been assigned incident 'Ransomware detected on domain controller' (severity Critical). Current status: Open.\",\n      \"notification_id\": 1,\n      \"notification_type\": \"Incident Assignment\",\n      \"read_date\": \"2026-10-18T17:34:53\",\n      \"severity_level\": \"Critical\",\n      \"status\": \"Read\",\n      \"title\": \"Incident #1 assigned to you\",\n      \"user_id\": 2\n    }\n  ],\n  \"status\": \"success\"\n}"
+            },
+            {
+              "name": "200 OK (analyst search, scoped to own inbox)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{analyst_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/search?user_id=4",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "user_id",
+                      "value": "4"
+                    }
+                  ]
+                },
+                "description": "Searches by user, type, severity and status. An analyst's search is silently restricted to their own inbox, so the filter cannot be used to read somebody else's notifications."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"count\": 1,\n  \"filters_applied\": {\n    \"notification_type\": null,\n    \"severity\": null,\n    \"status\": null,\n    \"user_id\": 2\n  },\n  \"notifications\": [\n    {\n      \"creation_date\": \"2026-10-18T17:34:52\",\n      \"message\": \"You have been assigned incident 'Ransomware detected on domain controller' (severity Critical). Current status: Open.\",\n      \"notification_id\": 1,\n      \"notification_type\": \"Incident Assignment\",\n      \"read_date\": \"2026-10-18T17:34:53\",\n      \"severity_level\": \"Critical\",\n      \"status\": \"Read\",\n      \"title\": \"Incident #1 assigned to you\",\n      \"user_id\": 2\n    }\n  ],\n  \"status\": \"success\"\n}"
+            },
+            {
+              "name": "400 Bad Request (invalid status filter)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/search?status=Archived",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "Archived"
+                    }
+                  ]
+                },
+                "description": "Searches by user, type, severity and status. An analyst's search is silently restricted to their own inbox, so the filter cannot be used to read somebody else's notifications."
+              },
+              "status": "BAD REQUEST",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"'status' must be one of: Unread, Read\",\n  \"status\": \"error\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "6. Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{analyst_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/2",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "2"
+              ]
+            },
+            "description": "Removes a notification. Administrators only."
+          },
+          "response": [
+            {
+              "name": "403 FORBIDDEN",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{analyst_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/2",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "2"
+                  ]
+                },
+                "description": "Removes a notification. Administrators only."
+              },
+              "status": "FORBIDDEN",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"User does not have permission to perform this operation\",\n  \"status\": \"error\"\n}"
+            },
+            {
+              "name": "200 OK (administrator)",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/2",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "2"
+                  ]
+                },
+                "description": "Removes a notification. Administrators only."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Notification deleted successfully\",\n  \"status\": \"success\"\n}"
+            },
+            {
+              "name": "404 Not Found (already deleted)",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/2",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "2"
+                  ]
+                },
+                "description": "Removes a notification. Administrators only."
+              },
+              "status": "NOT FOUND",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"No notification with id 2 exists\",\n  \"status\": \"error\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    }
+  ]
+}

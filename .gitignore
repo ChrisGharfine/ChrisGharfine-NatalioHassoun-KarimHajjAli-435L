@@ -1,0 +1,16 @@
+# Virtual environment
+venv/
+.venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Generated database -- recreate it with 'python seed.py'
+database.db
+
+# Generated documentation -- rebuild with 'cd docs && make html'
+docs/build/
+
+# Server output
+server.log
