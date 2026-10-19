@@ -4,12 +4,13 @@ import hmac
 from functools import wraps
 
 from flask import current_app, g, request
-from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+from flask_jwt_extended import get_jwt_identity
 from sqlalchemy import select
 
 from ..models import User
 from .clients import call_users
 from .errors import APIError
+from .tokens import valid_user_id, verify_access_request
 
 
 def service_auth():
@@ -22,7 +23,8 @@ def service_auth():
 
 
 def local_identity(identity):
-    if not isinstance(identity, str) or not identity.isdecimal() or not 0 < int(identity) <= 2147483647:
+    if (not isinstance(identity, str) or not identity.isascii() or not identity.isdecimal()
+            or len(identity) > 10 or not valid_user_id(int(identity))):
         raise APIError(401, "INVALID_TOKEN", "Invalid token identity.")
     user = g.db.scalar(select(User).where(User.id == int(identity), User.deleted_at.is_(None)))
     if not user or user.account_status != "active":
@@ -34,10 +36,8 @@ def protected(*roles):
     def decorate(function):
         @wraps(function)
         def wrapped(*args, **kwargs):
-            verify_jwt_in_request()
+            verify_access_request()
             identity = get_jwt_identity()
-            if not isinstance(identity, str) or not identity.isdecimal() or not 0 < int(identity) <= 2147483647:
-                raise APIError(401, "INVALID_TOKEN", "Invalid token identity.")
             if current_app.config["SERVICE_NAME"] == "users":
                 g.actor = local_identity(identity)
             else:

@@ -1,6 +1,7 @@
 """Application factory: run one service per process, sharing only contracts."""
 
 import json
+import math
 import os
 from datetime import timedelta
 
@@ -26,14 +27,27 @@ def create_app(service, overrides=None):
         SERVICE_NAME=service, DATABASE_URL=os.getenv("DATABASE_URL", ""),
         API_PREFIX=os.getenv("API_PREFIX", "/api/natalio-hassoun"),
         JWT_SECRET_KEY=os.getenv("JWT_SECRET_KEY", ""),
+        JWT_ENCODE_ISSUER=os.getenv("JWT_ENCODE_ISSUER", "security-sprint1-users"),
+        JWT_DECODE_ISSUER=os.getenv("JWT_DECODE_ISSUER", "security-sprint1-users"),
+        JWT_ENCODE_AUDIENCE=os.getenv("JWT_ENCODE_AUDIENCE", "security-sprint1-services"),
+        JWT_DECODE_AUDIENCE=os.getenv("JWT_DECODE_AUDIENCE", "security-sprint1-services"),
         SERVICE_TOKENS=json.loads(os.getenv("SERVICE_TOKENS", "{}")),
         USERS_URL=os.getenv("USERS_URL", "http://127.0.0.1:8001").rstrip("/"),
         LOGS_URL=os.getenv("LOGS_URL", "http://127.0.0.1:8005").rstrip("/"),
         SERVICE_TIMEOUT=float(os.getenv("SERVICE_TIMEOUT", "3")),
         JWT_ACCESS_TOKEN_EXPIRES=timedelta(minutes=30), JWT_ALGORITHM="HS256",
+        JWT_DECODE_ALGORITHMS=["HS256"],
         JWT_TOKEN_LOCATION=["headers"], MAX_CONTENT_LENGTH=64 * 1024,
     )
     app.config.update(overrides or {})
+    for suffix in ("ISSUER", "AUDIENCE"):
+        encode = app.config["JWT_ENCODE_" + suffix]
+        decode = app.config["JWT_DECODE_" + suffix]
+        if not isinstance(encode, str) or not encode.strip() or encode != decode:
+            raise ValueError("JWT encode/decode issuer and audience must be nonempty matching strings.")
+    if (not math.isfinite(app.config["SERVICE_TIMEOUT"])
+            or not 0 < app.config["SERVICE_TIMEOUT"] <= 5):
+        raise ValueError("SERVICE_TIMEOUT must be greater than zero and at most five seconds.")
     secret = app.config["JWT_SECRET_KEY"]
     tokens = app.config["SERVICE_TOKENS"]
     if len(secret) < 32 or "CHANGE_ME" in secret:
@@ -114,7 +128,9 @@ def create_app(service, overrides=None):
             g.db.close()
         if getattr(g, "audit_needed", False):
             try:
-                pending = drain_outbox()
+                # Keep request latency bounded even when a backlog exists.
+                # Explicit flush commands process larger batches after commit.
+                pending = drain_outbox(limit=10)
                 delivery = {"status": "pending" if pending else "delivered", "pending_events": pending}
             except SQLAlchemyError:
                 delivery = {"status": "pending", "message": "Retry audit delivery with flush-audit."}

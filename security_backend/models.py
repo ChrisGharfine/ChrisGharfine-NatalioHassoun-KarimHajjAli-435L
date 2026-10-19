@@ -131,6 +131,8 @@ class OutboxMixin:
     delivered_at: Mapped[object | None] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str | None] = mapped_column(String(120))
+    next_attempt_at: Mapped[object | None] = mapped_column(DateTime(timezone=True))
+    delivery_blocked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 
 class UsersOutbox(OutboxMixin, Base):

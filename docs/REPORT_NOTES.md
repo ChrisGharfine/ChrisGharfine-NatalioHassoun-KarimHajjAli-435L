@@ -20,6 +20,8 @@ employees. Administrator authentication is required for privileged accounts.
 Passwords use Werkzeug's salted scrypt hashes. Login accepts username or email,
 verifies the hash, checks active/non-deleted status and issues a 30-minute JWT
 with a string user-ID identity. Failed authentication gets a generic response.
+The team v1 update additionally requires explicit issuer/audience, numeric date
+claims and access-token type on the signed token, with HS256 as the only algorithm.
 
 ## Authorization (Natalio Hassoun)
 
@@ -38,6 +40,10 @@ manual retry. Stable UUID event IDs and durable receipts prevent duplicate
 ingestion and resurrection of legitimately deleted logs. Logging records its own
 security events locally, avoiding recursive calls. Logs cannot be updated; only
 administrators can delete them through the API.
+Team v1 validates the acknowledgment before marking delivery, persists retry due
+times with exponential backoff capped at 300 seconds, and retains permanent
+rejections for operator correction. Old report/screenshot counts precede this
+update; use VERIFICATION_V1.md for newly executed results.
 
 ## Playbooks and response actions (Natalio Hassoun)
 

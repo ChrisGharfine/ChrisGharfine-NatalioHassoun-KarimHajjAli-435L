@@ -5,6 +5,11 @@ U = Users :8001; L = Logs :8005; P = Playbooks :8009.
 Roles: A administrator, S analyst, E employee, R auditor.
 Authentication is `Authorization: Bearer <access_token>`, unless specified.
 
+Team v1 requires issuer security-sprint1-users, audience security-sprint1-services,
+type=access, string sub and numeric iat/exp under HS256. Old tokens without these
+claims require a new login. Machine-readable exports: openapi-users.json,
+openapi-logs.json and openapi-playbooks.json (OpenAPI 3.0.3).
+
 Successful responses have `{"status":"success","data":...}`. Mutations with
 audit events additionally report `audit_delivery`. Errors use
 `{"status":"error","code":"...","message":"..."}`. JSON examples below
@@ -143,6 +148,10 @@ Business changes and their outbox events commit atomically. A normal mutation ca
 return 200/201 with `audit_delivery:{status:"pending",pending_events:1}` if Logging
 is unavailable. This means the business operation succeeded; retain its result and
 run `flush-audit` after recovery. Delivery errors never expose service secrets.
+Only a validated receipt marks an event delivered. Retries use the unchanged UUID
+and a persisted exponential delay capped at 300 seconds. Permanent input/key or
+idempotency conflicts block the event for operator correction; --retry-blocked
+explicitly requeues it. A normal flush skips work not yet due and blocked events.
 Pending events survive process restarts. The finite timeout prevents unbounded
 HTTP waits. Database failure prevents committing both the mutation and its event.
 

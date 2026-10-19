@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from datetime import timedelta
+from security_backend.shared.validation import utcnow
 
 import pytest
 from flask_jwt_extended import create_access_token
@@ -271,6 +272,11 @@ def test_log_outage_durable_outbox_and_recovery(api):
             assert any(row.payload["user_id"] == created["id"] for row in pending)
     finally:
         app.config["LOGS_URL"] = original
+    # Simulate the persisted retry becoming due; do not bypass scheduling in production.
+    with app.extensions["session_factory"]() as session:
+        for row in session.scalars(select(UsersOutbox).where(UsersOutbox.delivered_at.is_(None))):
+            row.next_attempt_at = utcnow() - timedelta(seconds=1)
+        session.commit()
     with app.app_context():
         assert drain_outbox() == 0
         assert drain_outbox() == 0

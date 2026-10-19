@@ -75,7 +75,9 @@ def api():
     isolated_url = url.update_query_dict({"options": f"-csearch_path={schema}"})
     config = {"DATABASE_URL": isolated_url.render_as_string(hide_password=False),
               "JWT_SECRET_KEY": secrets.token_hex(32),
-              "SERVICE_TOKENS": {name: secrets.token_hex(32) for name in ("users", "logs", "playbooks")},
+              "SERVICE_TOKENS": {name: secrets.token_hex(32) for name in
+                                 ("users", "logs", "playbooks", "assets", "threats", "reports",
+                                  "incidents", "vulnerabilities", "notifications")},
               "API_PREFIX": PREFIX, "SERVICE_TIMEOUT": 0.6}
     apps, servers, threads, urls = {}, {}, {}, {}
     try:

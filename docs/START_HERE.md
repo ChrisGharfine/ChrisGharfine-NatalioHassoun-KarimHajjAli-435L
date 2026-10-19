@@ -36,6 +36,8 @@ implementation choice because the assignment does not specify exact rules.
 ```
 
 The migration creates only Student 1's tables and immutable-history triggers.
+It now applies 001_student1.sql and the additive 002_team_v1.sql retry-metadata
+migration in one transaction. Existing outbox events and receipt IDs are retained.
 It is repeatable and never drops existing tables or records. It does not reconcile
 an incompatible pre-existing schema: coordinate the shared schema before applying
 it to an existing team database. Users must exist before teammates add user FKs.
@@ -65,6 +67,24 @@ After all servers are running:
 bootstrap password from your shell/session if it is no longer needed. Do not
 share `.env`, real Postman environments, tokens, or database credentials in Git.
 
+For the team v1 upgrade, restart all three services AFTER running migrate, then
+log in again: existing tokens without issuer/audience are intentionally rejected.
+The four JWT issuer/audience settings and all nine service-key placeholders are
+in .env.example. Add distinct random local keys; coordinate matching credentials
+privately with each owner. Never put real keys in the JSON environment export.
+
+Audit delivery respects a persisted exponential schedule (maximum five minutes).
+Run flush-audit again once pending events are due. After fixing rejected service
+credentials or another permanent delivery failure, explicitly requeue blocked work:
+
+```powershell
+.\.venv\Scripts\python.exe -m security_backend flush-audit users --retry-blocked
+.\.venv\Scripts\python.exe -m security_backend flush-audit playbooks --retry-blocked
+```
+
+Exit 1 means some work remains pending/scheduled/blocked. Do not repeat the
+successful business operation. See TEAM_V1_ROLLOUT.md for exact upgrade steps.
+
 ## Sample data
 
 Set `DEMO_PASSWORD` in your local `.env`, then run:
@@ -89,8 +109,10 @@ Set `TEST_DATABASE_URL` to an isolated PostgreSQL database whose name ends in
 
 The suite starts three real HTTP servers on temporary loopback ports and uses a
 random schema inside the test database. It removes only that schema at teardown.
-It does not drop the database, touch other schemas, or use SQLite. There are no
-mocked API responses. Outage tests point a service URL at an unreachable local
+It does not drop the database, touch existing schemas, or use SQLite. The original
+integration suite uses no mocked APIs. New tests explicitly named test_unit_ use
+mocked outbound responses to test malformed dependency replies; those are unit
+fault tests, not teammate integration evidence. Outage tests point a URL at an unreachable local
 port; they are real connection failures. Tests do not prove integration with
 teammates' six services or replace the assignment's Postman screenshots.
 

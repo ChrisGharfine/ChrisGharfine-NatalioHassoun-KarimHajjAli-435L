@@ -16,10 +16,11 @@ from .shared.constants import ADMIN
 
 
 def migrate(app):
-    sql = (Path(__file__).resolve().parent.parent / "database" / "001_student1.sql").read_text(encoding="utf-8")
+    directory = Path(__file__).resolve().parent.parent / "database"
     with app.extensions["engine"].begin() as connection:
         connection.execute(text("SELECT pg_advisory_xact_lock(4351001)"))
-        connection.exec_driver_sql(sql)
+        for filename in ("001_student1.sql", "002_team_v1.sql"):
+            connection.exec_driver_sql((directory / filename).read_text(encoding="utf-8"))
     print("Student 1 migration applied (repeatable; existing records retained).")
 
 
@@ -58,6 +59,8 @@ def main():
     commands.add_parser("create-admin")
     flush = commands.add_parser("flush-audit")
     flush.add_argument("service", choices=("users", "playbooks"))
+    flush.add_argument("--retry-blocked", action="store_true",
+                       help="Requeue blocked audit events after correcting credentials/configuration.")
     args = parser.parse_args()
     service = getattr(args, "service", "users")
     app = create_app(service)
@@ -67,7 +70,7 @@ def main():
         elif args.command == "create-admin":
             create_admin(app)
         elif args.command == "flush-audit":
-            pending = drain_outbox()
+            pending = drain_outbox(retry_blocked=args.retry_blocked)
             print(f"Pending audit events: {pending}")
             if pending:
                 raise SystemExit(1)

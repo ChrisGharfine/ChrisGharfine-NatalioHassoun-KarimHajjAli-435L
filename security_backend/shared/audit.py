@@ -1,9 +1,10 @@
 """Atomic local outbox + idempotent delivery prevents silent audit loss."""
 
 import uuid
+from datetime import timedelta
 
 from flask import current_app, g, request
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, update
 
 from ..models import PlaybooksOutbox, UsersOutbox
 from .clients import log_event
@@ -25,13 +26,19 @@ def record_event(session, action, description, user_id=None, severity="Informati
         session.add(outbox_type()(id=str(uuid.uuid4()), payload=payload))
 
 
-def drain_outbox(limit=100):
+def drain_outbox(limit=100, retry_blocked=False):
     if current_app.config["SERVICE_NAME"] == "logs":
         return 0
     model = outbox_type()
     factory = current_app.extensions["session_factory"]
     with factory() as session:
+        now = utcnow()
+        if retry_blocked:
+            session.execute(update(model).where(model.delivered_at.is_(None), model.delivery_blocked.is_(True))
+                            .values(delivery_blocked=False, next_attempt_at=now))
         rows = session.scalars(select(model).where(model.delivered_at.is_(None))
+                               .where(model.delivery_blocked.is_(False),
+                                      or_(model.next_attempt_at.is_(None), model.next_attempt_at <= now))
                                .order_by(model.created_at).limit(limit).with_for_update(skip_locked=True)).all()
         for row in rows:
             row.attempts += 1
@@ -39,11 +46,19 @@ def drain_outbox(limit=100):
                 log_event(row.payload, row.id)
                 row.delivered_at = utcnow()
                 row.last_error = None
+                row.next_attempt_at = None
             except APIError as exc:
                 row.last_error = exc.code
-                break
+                row.delivery_blocked = exc.code in ("AUDIT_REJECTED", "AUDIT_IDEMPOTENCY_CONFLICT")
+                row.next_attempt_at = (None if row.delivery_blocked else
+                                       utcnow() + timedelta(seconds=min(2 ** min(row.attempts, 9), 300)))
+                if exc.code == "AUDIT_UNAVAILABLE":
+                    # A failed dependency should cost one bounded network wait,
+                    # not one timeout per queued event. This row is deferred so
+                    # it cannot starve other due work on the next flush.
+                    break
         session.commit()
-        return len(session.scalars(select(model.id).where(model.delivered_at.is_(None))).all())
+        return session.scalar(select(func.count()).select_from(model).where(model.delivered_at.is_(None)))
 
 
 def audit_denial(message="Protected request rejected."):

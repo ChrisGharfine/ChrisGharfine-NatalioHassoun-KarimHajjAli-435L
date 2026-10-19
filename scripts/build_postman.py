@@ -34,6 +34,14 @@ def main():
     first = add(setup, "Administrator login", "users", "POST", "/users/login", body={"identifier": "{{admin_username}}", "password": "{{admin_password}}"},
                 token=None, save=(("admin_token", "access_token"), ("admin_id", "user.id")), description="Authenticate the administrator created with create-admin.")
     first["event"].insert(0, {"listen": "prerequest", "script": {"type": "text/javascript", "exec": ["pm.collectionVariables.set('run_suffix', Date.now().toString());"]}})
+    first["event"][-1]["script"]["exec"] += [
+        "pm.test('Team v1 token claims', () => {",
+        "  const c = JSON.parse(Buffer.from(pm.response.json().data.access_token.split('.')[1], 'base64').toString('utf8'));",
+        "  pm.expect(c.iss).to.eql('security-sprint1-users'); pm.expect(c.aud).to.eql('security-sprint1-services');",
+        "  pm.expect(c.type).to.eql('access'); pm.expect(c.sub).to.eql(String(pm.response.json().data.user.id));",
+        "  pm.expect(c.exp - c.iat).to.eql(1800);",
+        "});",
+    ]
     for service in ("users", "logs", "playbooks"):
         add(setup, service.title() + " health", service, "GET", "/health", token=None,
             description="Confirm the service and database are reachable.")
@@ -128,14 +136,38 @@ def main():
     headers = [{"key": "X-Service-Name", "value": "playbooks"}, {"key": "X-Service-Key", "value": "{{playbooks_service_key}}"}]
     add(internal, "Verify current identity - service only", "users", "POST", "/internal/identity/verify", extra_headers=headers)
     add(internal, "Validate user reference - service only", "users", "GET", "/internal/users/{{analyst_id}}", token=None, extra_headers=headers)
-    add(internal, "Ingest automatic event", "logs", "POST", "/internal/logs", 201,
+    first_ingest = add(internal, "Ingest automatic event", "logs", "POST", "/internal/logs", 201,
+        {"user_id": None, "action": "postman_internal_check", "description": "Service integration check.",
+         "severity": "Information", "related_service": "playbooks"}, token=None,
+        extra_headers=[*headers, {"key": "Idempotency-Key", "value": "{{event_id}}"}],
+        save=(("integration_log_id", "log.id"),))
+    duplicate_ingest = add(internal, "Retry identical event without duplicate", "logs", "POST", "/internal/logs", 200,
         {"user_id": None, "action": "postman_internal_check", "description": "Service integration check.",
          "severity": "Information", "related_service": "playbooks"}, token=None,
         extra_headers=[*headers, {"key": "Idempotency-Key", "value": "{{event_id}}"}])
-    add(internal, "Retry identical event without duplicate", "logs", "POST", "/internal/logs", 200,
+    for item, duplicate in ((first_ingest, "false"), (duplicate_ingest, "true")):
+        item["event"][-1]["script"]["exec"] += [
+            "pm.test('Valid audit receipt', () => { const d = pm.response.json().data;",
+            "pm.expect(d.event_id).to.eql(pm.collectionVariables.get('event_id'));",
+            f"pm.expect(d.duplicate).to.eql({duplicate}); pm.expect(d.log.id).to.be.above(0); }});",
+        ]
+    add(internal, "Changed payload under same UUID rejected", "logs", "POST", "/internal/logs", 409,
+        {"user_id": None, "action": "postman_internal_check", "description": "Different event rejected.",
+         "severity": "Information", "related_service": "playbooks"}, token=None,
+        extra_headers=[*headers, {"key": "Idempotency-Key", "value": "{{event_id}}"}])
+    add(internal, "Automatic ingestion without service key rejected", "logs", "POST", "/internal/logs", 401,
+        {"user_id": None, "action": "postman_internal_check", "description": "Missing service authentication.",
+         "severity": "Information", "related_service": "playbooks"}, token=None,
+        extra_headers=[{"key": "Idempotency-Key", "value": "{{event_id}}"}])
+    add(internal, "Delete ingested demo log", "logs", "DELETE", "/logs/{{integration_log_id}}")
+    deleted_retry = add(internal, "Retry deleted event preserves receipt", "logs", "POST", "/internal/logs", 200,
         {"user_id": None, "action": "postman_internal_check", "description": "Service integration check.",
          "severity": "Information", "related_service": "playbooks"}, token=None,
         extra_headers=[*headers, {"key": "Idempotency-Key", "value": "{{event_id}}"}])
+    deleted_retry["event"][-1]["script"]["exec"] += [
+        "pm.test('Deleted event acknowledged without resurrection', () => { const d = pm.response.json().data;",
+        "pm.expect(d.event_id).to.eql(pm.collectionVariables.get('event_id')); pm.expect(d.duplicate).to.eql(true); pm.expect(d.log).to.eql(null); });",
+    ]
     cleanup = folder("06 - User deletion evidence")
     add(cleanup, "Employee cannot delete users", "users", "DELETE", "/users/{{employee_id}}", 403, token="employee_token")
     add(cleanup, "Administrator deletes employee", "users", "DELETE", "/users/{{employee_id}}")
@@ -143,7 +175,7 @@ def main():
     add(cleanup, "Historical logs still available", "logs", "GET", "/logs/user/{{employee_id}}")
 
     collection = {"info": {"name": "Student 1 - Natalio Hassoun", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-                            "description": "Run folders in order against your own running services. Creates real demo data. No saved example responses or credentials."},
+                            "description": "Team integration v1. Run folders in order against your own running services. Log in again after updating JWT issuer/audience. Creates real demo data. No saved example responses or credentials."},
                   "event": [{"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
                       "pm.collectionVariables.set('utc_date', new Date().toISOString().slice(0,10));",
                       "if (pm.info.requestName === 'Ingest automatic event') pm.collectionVariables.set('event_id', pm.variables.replaceIn('{{$guid}}'));"

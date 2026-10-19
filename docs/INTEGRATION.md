@@ -1,5 +1,11 @@
 # Team integration contract (Natalio Hassoun)
 
+Updated for team-integration-v1.0.0 on 19 October 2026. See TEAM_V1_ROLLOUT.md
+for migration/startup steps and the boundary between verified local behavior and
+pending nine-service integration. Provider-specific response envelopes are kept;
+Chris maps them inside Reports. This package does not force teammates to rename
+their public fields or rewrite their list envelopes.
+
 ## Ownership and service locations
 
 | Service | Default URL | Owned tables |
@@ -11,6 +17,10 @@
 Prefix every route, including internal and health routes, with
 `/api/natalio-hassoun`. Teammates' own public routes must use their own full names.
 These ports are conventions, not assignment requirements.
+
+USERS_URL and LOGS_URL contain only the destination origin; our client appends
+API_PREFIX. Chris's full-base URL configuration must instead include Natalio's
+prefix. Do not append it twice. Each destination owner's prefix is independent.
 
 Use one shared database/schema design. Other services may reference `users.id`
 with foreign keys, but must not query or modify user rows directly from their
@@ -41,6 +51,21 @@ return 401. Missing/invalid service keys also return 401. Other services must
 verify token signature/expiry first, then use this endpoint for current role and
 status. Do not trust a role copied into an old token. If Users is unavailable,
 reject protected operations with 503 rather than granting access.
+
+JWT contract: HS256 only; string positive-integer sub through 2147483647;
+numeric iat/exp, issuer `security-sprint1-users`, audience
+`security-sprint1-services`, and an explicit `type=access`. All six claims are
+required on the signed wire token. An optional nbf is also validated. Access
+tokens last 1800 seconds. Configure JWT_ENCODE_ISSUER/JWT_DECODE_ISSUER and
+JWT_ENCODE_AUDIENCE/JWT_DECODE_AUDIENCE consistently. Old tokens without the v1
+claims are rejected; log in again after restarting the updated services.
+
+Shared `verify_access_request()` performs the strict token checks. It deliberately
+checks the original signed token as well as Flask-JWT-Extended's normalized
+claims, because that library otherwise supplies a missing type claim. The HTTP
+identity client validates the success envelope, integer ID equality with sub,
+known role, and active status. It rejects malformed identity/reference replies
+with 503. Signature validation alone is insufficient for current permissions.
 
 Add each teammate service name and a distinct random key to the team's local
 `SERVICE_TOKENS` configuration. Examples: assets, threats, reports, incidents,
@@ -94,6 +119,26 @@ configuration. It raises `AUDIT_UNAVAILABLE` on failure; it does not persist the
 caller's event itself. Save the event transactionally with your own data and retry
 using that UUID. Do not retry a whole non-idempotent business operation merely
 because logging is unavailable. Use bounded network timeouts.
+
+`log_event` acknowledges only a 201 new receipt or 200 duplicate receipt whose
+success envelope, event UUID, duplicate boolean, and positive log ID are valid.
+The explicit duplicate=true/log=null deletion case is acknowledged as delivered.
+202, redirects and malformed/wrong-event receipts remain pending. Calls disable
+redirects and ambient proxy configuration. SERVICE_TIMEOUT must be in (0,5].
+
+Payload/credential rejection blocks the event with AUDIT_REJECTED; a permanent
+409 IDEMPOTENCY_CONFLICT blocks it with AUDIT_IDEMPOTENCY_CONFLICT. Generic 409
+concurrency conflicts, network failures and temporary service failures retry the
+same UUID/payload. Retry delays are 2,4,8,... seconds capped at 300; next_attempt_at,
+attempts and blocked state persist in the originating outbox. Permanently blocked
+events do not stop other due work. Temporary dependency failure stops that batch
+after scheduling the failed row, bounding outage latency; the next flush can
+process other due rows. No timer/worker is installed automatically: mutations try
+up to 10 due events, and `flush-audit` processes a due batch of up to 100.
+Invoke it periodically for eventual delivery after recovery. Pending counts
+include future-scheduled and blocked records, so exit 1 does not mean data loss.
+After fixing a permanent failure, use `flush-audit <service> --retry-blocked` to
+requeue the unchanged event. Never rewrite an accepted event's UUID/payload.
 
 Required event sources: Users handles login/user/role events; every service must
 record denied access and data modifications. Logging handles its own denied

@@ -2,7 +2,7 @@
   "info": {
     "name": "Student 1 - Natalio Hassoun",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Run folders in order against your own running services. Creates real demo data. No saved example responses or credentials."
+    "description": "Team integration v1. Run folders in order against your own running services. Log in again after updating JWT issuer/audience. Creates real demo data. No saved example responses or credentials."
   },
   "event": [
     {
@@ -65,7 +65,13 @@
                   "if (pm.response.code < 300) { const d = pm.response.json().data;",
                   "pm.collectionVariables.set('admin_token', d.access_token);",
                   "pm.collectionVariables.set('admin_id', d.user.id);",
-                  "}"
+                  "}",
+                  "pm.test('Team v1 token claims', () => {",
+                  "  const c = JSON.parse(Buffer.from(pm.response.json().data.access_token.split('.')[1], 'base64').toString('utf8'));",
+                  "  pm.expect(c.iss).to.eql('security-sprint1-users'); pm.expect(c.aud).to.eql('security-sprint1-services');",
+                  "  pm.expect(c.type).to.eql('access'); pm.expect(c.sub).to.eql(String(pm.response.json().data.user.id));",
+                  "  pm.expect(c.exp - c.iat).to.eql(1800);",
+                  "});"
                 ]
               }
             }
@@ -2741,7 +2747,13 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
-                  "pm.test('JSON response', () => pm.response.to.be.json);"
+                  "pm.test('JSON response', () => pm.response.to.be.json);",
+                  "if (pm.response.code < 300) { const d = pm.response.json().data;",
+                  "pm.collectionVariables.set('integration_log_id', d.log.id);",
+                  "}",
+                  "pm.test('Valid audit receipt', () => { const d = pm.response.json().data;",
+                  "pm.expect(d.event_id).to.eql(pm.collectionVariables.get('event_id'));",
+                  "pm.expect(d.duplicate).to.eql(false); pm.expect(d.log.id).to.be.above(0); });"
                 ]
               }
             }
@@ -2791,7 +2803,190 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('JSON response', () => pm.response.to.be.json);",
+                  "pm.test('Valid audit receipt', () => { const d = pm.response.json().data;",
+                  "pm.expect(d.event_id).to.eql(pm.collectionVariables.get('event_id'));",
+                  "pm.expect(d.duplicate).to.eql(true); pm.expect(d.log.id).to.be.above(0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Changed payload under same UUID rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "playbooks"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{playbooks_service_key}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{event_id}}"
+              }
+            ],
+            "url": "{{logs_url}}{{prefix}}/internal/logs",
+            "description": "\nCapture the actual request, response and status. Owner: Natalio Hassoun.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": null,\n  \"action\": \"postman_internal_check\",\n  \"description\": \"Different event rejected.\",\n  \"severity\": \"Information\",\n  \"related_service\": \"playbooks\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
                   "pm.test('JSON response', () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Automatic ingestion without service key rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{event_id}}"
+              }
+            ],
+            "url": "{{logs_url}}{{prefix}}/internal/logs",
+            "description": "\nCapture the actual request, response and status. Owner: Natalio Hassoun.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": null,\n  \"action\": \"postman_internal_check\",\n  \"description\": \"Missing service authentication.\",\n  \"severity\": \"Information\",\n  \"related_service\": \"playbooks\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('JSON response', () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete ingested demo log",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{logs_url}}{{prefix}}/logs/{{integration_log_id}}",
+            "description": "\nCapture the actual request, response and status. Owner: Natalio Hassoun.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('JSON response', () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Retry deleted event preserves receipt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "playbooks"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{playbooks_service_key}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{event_id}}"
+              }
+            ],
+            "url": "{{logs_url}}{{prefix}}/internal/logs",
+            "description": "\nCapture the actual request, response and status. Owner: Natalio Hassoun.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": null,\n  \"action\": \"postman_internal_check\",\n  \"description\": \"Service integration check.\",\n  \"severity\": \"Information\",\n  \"related_service\": \"playbooks\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('JSON response', () => pm.response.to.be.json);",
+                  "pm.test('Deleted event acknowledged without resurrection', () => { const d = pm.response.json().data;",
+                  "pm.expect(d.event_id).to.eql(pm.collectionVariables.get('event_id')); pm.expect(d.duplicate).to.eql(true); pm.expect(d.log).to.eql(null); });"
                 ]
               }
             }

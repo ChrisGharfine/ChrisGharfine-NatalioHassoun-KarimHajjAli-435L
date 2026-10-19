@@ -1,5 +1,8 @@
 # Executed verification (Natalio Hassoun)
 
+Historical results for the original version follow. For the 19 October team v1
+update, use VERIFICATION_V1.md. These earlier counts do not validate later edits.
+
 Final verification was executed on October 18, 2026, using Python 3.10.5,
 PostgreSQL 17.10, Flask 3.1.3, SQLAlchemy 2.0.55, Psycopg 3.3.6 and
 Flask-JWT-Extended 4.7.4. These are measured runs against this local implementation,

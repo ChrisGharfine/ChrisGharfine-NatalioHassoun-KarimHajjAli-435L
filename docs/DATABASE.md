@@ -50,5 +50,10 @@ here. Coordinate user foreign keys and field names with their owners. Schema
 consistency does not authorize direct cross-service application writes.
 
 The initial script is non-destructive and repeatable, not a schema-diff engine.
+Migration 002_team_v1.sql adds next_attempt_at and delivery_blocked to the two
+owned outboxes using ADD COLUMN IF NOT EXISTS, leaving payloads, UUIDs, attempt
+counts and receipts intact. The migrate command executes both migrations in one
+transaction and records version 2. Fresh installs and existing version 1 databases
+use the same command; do not regenerate or reset the database to upgrade.
 For later changes add a new numbered migration, with a backup and review of its
 effect on team relationships. Never edit a live shared database by dropping it.

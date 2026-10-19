@@ -1,7 +1,7 @@
 """User registration, authentication, profile ownership, and current identity."""
 
 from flask import Blueprint, g, request
-from flask_jwt_extended import create_access_token, get_jwt_identity, verify_jwt_in_request
+from flask_jwt_extended import create_access_token, get_jwt_identity
 from sqlalchemy import select
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -10,6 +10,7 @@ from .models import User
 from .shared import validation as v
 from .shared.audit import record_event
 from .shared.auth import local_identity, protected, service_auth
+from .shared.tokens import verify_access_request
 from .shared.constants import ACCOUNT_STATUSES, ADMIN, AUDITOR, EMPLOYEE, ROLES
 from .shared.errors import APIError, missing
 
@@ -33,7 +34,7 @@ def register():
     actor = None
     # A supplied token must be valid. Administrators can register privileged accounts.
     if request.headers.get("Authorization"):
-        verify_jwt_in_request()
+        verify_access_request()
         actor = local_identity(get_jwt_identity())
         g.actor = actor
         if actor["role"] not in (ADMIN, EMPLOYEE):
@@ -145,7 +146,7 @@ def update_status(user_id):
 @bp.post("/internal/identity/verify")
 def verify_identity():
     service_auth()
-    verify_jwt_in_request()
+    verify_access_request()
     return success(local_identity(get_jwt_identity()))
 
 
