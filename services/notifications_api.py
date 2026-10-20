@@ -17,6 +17,7 @@ notifications they point at, so a retry after a deletion reports
 """
 
 import uuid
+import psycopg
 
 from flask import Blueprint, jsonify, request
 
@@ -124,10 +125,8 @@ def api_internal_create_notification():
 
     actor_user_id = body.get("actor_user_id")
     if actor_user_id is not None:
-        try:
-            actor_user_id = int(actor_user_id)
-        except (TypeError, ValueError):
-            return error("'actor_user_id' must be an integer or null", 400)
+        if type(actor_user_id) is not int or not 0 < actor_user_id <= 2147483647:
+            return error("'actor_user_id' must be a positive integer or null", 400)
 
     try:
         notification = Notification(
@@ -187,8 +186,17 @@ def api_internal_create_notification():
         }), 409
 
     row["actor_user_id"] = actor_user_id
-    stored = create_notification_with_receipt(
-        event_id, caller_service, digest, row)
+    if actor_user_id is not None:
+        try:
+            actor = lookup_user(actor_user_id, SERVICE)
+        except IdentityUnavailable as failure:
+            return error(failure.message, 503)
+        if actor is None:
+            return error("The initiating actor does not exist", 404)
+    try:
+        stored = create_notification_with_receipt(event_id, caller_service, digest, row)
+    except psycopg.errors.UniqueViolation:
+        return error("Concurrent delivery; retry the same UUID and payload", 409)
 
     return jsonify({
         "status": "success",
@@ -356,7 +364,9 @@ def api_mark_notification_read(notification_id):
         return _forbidden()
 
     was_unread = notification["status"] == "Unread"
-    updated = mark_notification_read(notification_id)
+    updated = mark_notification_read(notification_id, current_user()["id"])
+    if updated is None:
+        return error("The notification no longer exists", 404)
 
     return jsonify({
         "status": "success",

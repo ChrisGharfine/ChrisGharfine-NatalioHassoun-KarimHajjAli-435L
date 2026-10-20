@@ -26,6 +26,7 @@ import requests
 
 import config
 import db
+from outbox.receipts import valid_receipt
 
 #: Transport action codes fixed by section 6. Natalio's Logs validates
 #: against ``[a-z][a-z0-9_]*``, so the Sprint I human labels like
@@ -287,23 +288,8 @@ def _validate_receipt(response, row):
     except ValueError:
         return "retry", "non-JSON acknowledgement"
 
-    if not isinstance(body, dict) or body.get("status") != "success":
-        return "retry", "unrecognised acknowledgement envelope"
-
-    data = body.get("data")
-    if not isinstance(data, dict):
-        return "retry", "acknowledgement carried no data"
-
-    returned = str(data.get("event_id", ""))
-    if returned != str(row["event_id"]):
-        return "retry", "acknowledgement was for a different event id"
-
-    # A deleted log legitimately returns log=null on an identical retry.
-    log = data.get("log")
-    if log is not None and not isinstance(log, dict):
-        return "retry", "acknowledgement log field was not an object"
-
-    return "delivered", ""
+    return (("delivered", "") if valid_receipt(body, response.status_code, row["event_id"], "log", "id")
+            else ("retry", "invalid audit receipt"))
 
 
 def deliver_pending(limit=None):

@@ -8,17 +8,19 @@
 
 import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.abspath("../.."))
-sys.path.insert(0, os.path.abspath("../../services"))
+project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "services"))
 
 # -- Project information -----------------------------------------------------
 
 project = "SIRMS Backend - Services 3, 7 and 8"
 copyright = "2026, Karim Hajj Ali"
 author = "Karim Hajj Ali"
-release = "1.0.0"
-version = "1.0.0"
+release = "1.1.0"
+version = "1.1.0"
 
 # -- General configuration ---------------------------------------------------
 
@@ -48,5 +50,5 @@ autodoc_mock_imports = []
 # -- Options for HTML output -------------------------------------------------
 
 html_theme = "sphinx_rtd_theme"
-html_static_path = ["_static"]
+html_static_path = []
 html_title = "SIRMS Backend - Karim Hajj Ali"

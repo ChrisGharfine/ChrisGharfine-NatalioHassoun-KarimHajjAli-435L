@@ -10,6 +10,8 @@ current authority comes from :mod:`security.identity`.
 :author: Karim Hajj Ali
 """
 
+import math
+import re
 import jwt
 
 import config
@@ -67,6 +69,7 @@ def verify_access_token(token):
                 "verify_iat": True,
                 "verify_aud": True,
                 "verify_iss": True,
+                "strict_aud": True,
             },
         )
     except jwt.ExpiredSignatureError:
@@ -83,6 +86,14 @@ def verify_access_token(token):
         # Covers bad signatures, wrong algorithms and malformed tokens. The
         # message stays generic so it cannot be used to probe the secret.
         raise TokenError("Token is invalid")
+    except (ValueError, TypeError, OverflowError, RecursionError):
+        raise TokenError("Token is invalid") from None
+
+    if any(type(claims[name]) not in (int, float) or not math.isfinite(claims[name])
+           for name in ("iat", "exp", "nbf") if name in claims):
+        raise TokenError("Token dates must be finite numbers")
+    if claims["exp"] <= claims["iat"]:
+        raise TokenError("Token expiry must follow issue time")
 
     if claims.get("type") != EXPECTED_TOKEN_TYPE:
         raise TokenError("Only access tokens are accepted here")
@@ -103,10 +114,9 @@ def _subject_id(subject):
     :return: The user id.
     :rtype: int
     """
-    try:
-        user_id = int(subject)
-    except (TypeError, ValueError):
+    if not isinstance(subject, str) or not re.fullmatch(r"[1-9][0-9]{0,9}", subject):
         raise TokenError("Token subject is not a valid user id")
+    user_id = int(subject)
 
     if user_id <= 0 or user_id > 2147483647:
         raise TokenError("Token subject is out of range")

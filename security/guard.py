@@ -42,7 +42,16 @@ def error(message, status):
     :return: A Flask response tuple.
     :rtype: tuple
     """
-    return jsonify({"status": "error", "message": message}), status
+    # All permission failures, including resource ownership and internal service
+    # failures, pass this single writer. The flag prevents duplicate guard events.
+    if status in (401, 403) and not getattr(g, "karim_denial_recorded", False):
+        actor = getattr(g, "identity", None)
+        if not _record_denial(actor["id"] if actor else None, message):
+            return jsonify(status="error", code="AUDIT_STORAGE_UNAVAILABLE",
+                           message="The request was rejected; audit storage is unavailable."), 503
+    codes = {400: "INVALID_INPUT", 401: "AUTHENTICATION_REQUIRED", 403: "FORBIDDEN",
+             404: "NOT_FOUND", 409: "CONFLICT", 500: "INTERNAL_ERROR", 503: "SERVICE_UNAVAILABLE"}
+    return jsonify({"status": "error", "code": codes.get(status, "HTTP_ERROR"), "message": message}), status
 
 
 def current_user():
@@ -85,13 +94,14 @@ def _record_denial(user_id, reason):
             source_service=service,
             user_id=user_id,
             action="unauthorized_access",
-            description="%s %s refused: %s"
-                        % (request.method, request.path, reason),
+            description=("%s %s refused: %s" %
+                         (request.method, request.url_rule.rule if request.url_rule else "unmatched", reason))[:2000],
             severity="Warning",
             related_service=service)
+        g.karim_denial_recorded = True
         return True
     except Exception as failure:
-        current_app.logger.error("could not store denial event: %s", failure)
+        current_app.logger.error("Could not store denial event: %s", type(failure).__name__)
         return False
 
 
@@ -141,8 +151,7 @@ def require_role(*allowed_roles):
                 _record_denial(
                     claims["sub_id"],
                     "identity subject did not match the token subject")
-                return error("Token and identity disagree about the user",
-                             401)
+                return error("The identity service returned inconsistent identity data", 503)
 
             if identity["role"] not in allowed_roles:
                 if not _record_denial(

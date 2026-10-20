@@ -120,11 +120,11 @@ def _parse_identity(body):
             "The identity service returned no identity data")
 
     raw_id = data.get("id")
-    if isinstance(raw_id, bool) or not isinstance(raw_id, int) or raw_id <= 0:
+    if type(raw_id) is not int or not 0 < raw_id <= 2147483647:
         raise IdentityUnavailable(
             "The identity service returned an invalid user id")
 
-    role = constants.canonical_role(data.get("role"))
+    role = data.get("role") if data.get("role") in constants.ROLES else None
     if role is None:
         raise IdentityUnavailable(
             "The identity service returned an unrecognised role")
@@ -198,11 +198,11 @@ def lookup_user(user_id, calling_service):
         raise IdentityUnavailable("The users service returned no user data")
 
     raw_id = data.get("id")
-    if isinstance(raw_id, bool) or not isinstance(raw_id, int) or raw_id <= 0:
+    if type(raw_id) is not int or not 0 < raw_id <= 2147483647 or raw_id != int(user_id):
         raise IdentityUnavailable(
             "The users service returned an invalid user id")
 
-    role = constants.canonical_role(data.get("role"))
+    role = data.get("role") if data.get("role") in constants.ROLES else None
     if role is None:
         raise IdentityUnavailable(
             "The users service returned an unrecognised role")
@@ -212,11 +212,13 @@ def lookup_user(user_id, calling_service):
         raise IdentityUnavailable(
             "The users service returned an unrecognised account status")
 
+    if type(data.get("deleted")) is not bool:
+        raise IdentityUnavailable("The users service returned an invalid deleted flag")
     return {
         "id": raw_id,
         "role": role,
         "account_status": status,
-        "deleted": bool(data.get("deleted", False)),
+        "deleted": data["deleted"],
     }
 
 

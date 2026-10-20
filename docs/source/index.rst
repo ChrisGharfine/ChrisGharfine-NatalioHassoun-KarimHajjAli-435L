@@ -8,8 +8,10 @@ and Response Management System implemented by **Karim Hajj Ali**:
 * **Service 7** -- Vulnerability Management
 * **Service 8** -- Notification and Alert Management
 
-Every page below is generated from the Sphinx-style docstrings in the source,
-so the documentation and the code cannot drift apart.
+The API modules are documented from their Sphinx-style docstrings. Manual
+overviews still require review when the implementation changes. The current
+integration amendment and startup instructions are in ``docs/team/``.
+All routes below use the complete base URL with ``/api/karim-hajj-ali``.
 
 .. toctree::
    :maxdepth: 2
@@ -48,16 +50,16 @@ Shared modules
     base the three record types inherit from, and
     :class:`models.StatusWorkflow` holds the lifecycle rules.
 
-:mod:`auth`
-    Password hashing, login and the :func:`auth.require_role` decorator that
-    enforces role-based access control on every protected route.
+:mod:`security.guard`
+    Role and ownership enforcement uses current identity from Natalio's Users
+    API. :mod:`security.jwt_auth` verifies signed access tokens first.
 
-:mod:`audit`
-    The client the services use to write to the security audit log.
+:mod:`outbox.audit_outbox`
+    Durable audit delivery over HTTP, without direct writes to Logs tables.
 
-:mod:`database`
-    Connection handling and the small helpers that turn SQLite rows into
-    JSON-ready dictionaries.
+:mod:`db`
+    PostgreSQL transaction and query helpers. :mod:`serialization` produces
+    timezone-aware UTC representations.
 
 :mod:`constants`
     Every enumerated value the specification defines, written down once so

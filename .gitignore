@@ -1,21 +1,32 @@
-# Virtual environment
-venv/
-.venv/
-
-# Python bytecode
-__pycache__/
-*.pyc
-
-# Generated database -- recreate it with 'python seed.py'
-database.db
-
-# Generated documentation -- rebuild with 'cd docs && make html'
-docs/build/
-
-# Server output
-server.log
-
-# Local environment files -- never commit a filled-in copy
+# Private configuration, credentials and local database files
 .env
-.env.local
-.env.team
+.env.*
+!.env.example
+!*.example.env
+*.db
+*.sqlite*
+# Python/build/test runtimes
+.venv*/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+docs/_build/
+docs/build/
+*.log
+test-results.local.*
+.runtime/
+.chris-runtime/
+node_modules/
+# Native Postman workspaces can contain populated credentials
+.postman/
+postman/collections/
+postman/environments/
+postman/globals/
+
+/test-results.*

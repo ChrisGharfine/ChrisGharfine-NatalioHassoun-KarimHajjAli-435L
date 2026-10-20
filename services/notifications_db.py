@@ -164,19 +164,32 @@ def get_notifications_by_user(user_id):
         "ORDER BY creation_date DESC, notification_id DESC", (user_id,)))
 
 
-def mark_notification_read(notification_id):
+def mark_notification_read(notification_id, actor_user_id):
     """Mark a notification read, preserving an existing read date.
 
     :param notification_id: The notification to mark.
     :type notification_id: int
+    :param actor_user_id: Current authenticated user who changed the notification.
+    :type actor_user_id: int
     :return: The updated notification, or ``None``.
     :rtype: dict or NoneType
     """
-    db.execute(
-        "UPDATE notifications SET status = 'Read', read_date = %s "
-        "WHERE notification_id = %s AND status = 'Unread'",
-        (utc_now(), notification_id))
-    return get_notification_by_id(notification_id)
+    from outbox.audit_outbox import queue_audit_event
+    with db.transaction() as cur:
+        cur.execute("SELECT " + _NOTIFICATION_COLUMNS +
+                    " FROM notifications WHERE notification_id=%s FOR UPDATE", (notification_id,))
+        existing = cur.fetchone()
+        if existing is None:
+            return None
+        if existing["status"] == "Read":
+            return jsonify_row(existing)
+        cur.execute("UPDATE notifications SET status='Read', read_date=%s WHERE notification_id=%s RETURNING "
+                    + _NOTIFICATION_COLUMNS, (utc_now(), notification_id))
+        changed = cur.fetchone()
+        queue_audit_event(source_service="notifications", user_id=actor_user_id,
+                          action="notification_marked_read", description="Notification %s marked as read" % notification_id,
+                          severity="Information", related_service="notifications", cursor=cur)
+        return jsonify_row(changed)
 
 
 def search_notifications(user_id=None, notification_type=None, severity=None,

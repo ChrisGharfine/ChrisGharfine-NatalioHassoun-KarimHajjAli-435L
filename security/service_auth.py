@@ -45,7 +45,7 @@ def authenticate_service(headers, allowed_callers=None):
     name = (headers.get("X-Service-Name") or "").strip()
     key = (headers.get("X-Service-Key") or "").strip()
 
-    if not name or not key:
+    if not name or not key or len(key) > 8192:
         raise ServiceAuthError(
             "X-Service-Name and X-Service-Key are required", 401)
 
@@ -55,10 +55,10 @@ def authenticate_service(headers, allowed_callers=None):
     if expected is None:
         # Unknown service name. Compared against a dummy value anyway so the
         # response time does not reveal whether the name was registered.
-        hmac.compare_digest(key, "0" * len(key))
+        hmac.compare_digest(key.encode(), b"0" * len(key.encode()))
         raise ServiceAuthError("Invalid service credentials", 401)
 
-    if not hmac.compare_digest(key, expected):
+    if not hmac.compare_digest(key.encode(), expected.encode()):
         raise ServiceAuthError("Invalid service credentials", 401)
 
     if allowed_callers is not None and name not in allowed_callers:

@@ -16,7 +16,8 @@ If a service is not reachable the example records that fact rather than a
 fabricated response -- an unreachable dependency is pending integration,
 not something to invent.
 
-Start the three services, then run::
+By default generate templates without HTTP calls. To capture real examples,
+start disposable services and explicitly set KARIM_CAPTURE_EXAMPLES=1 before running::
 
     python build_postman.py
 
@@ -42,9 +43,9 @@ BASE_VARIABLE = {
 }
 
 BASE_URL = {
-    config.SERVICE_INCIDENTS: "http://127.0.0.1:8003",
-    config.SERVICE_VULNERABILITIES: "http://127.0.0.1:8007",
-    config.SERVICE_NOTIFICATIONS: "http://127.0.0.1:8008",
+    config.SERVICE_INCIDENTS: "http://127.0.0.1:8003" + config.API_PREFIX,
+    config.SERVICE_VULNERABILITIES: "http://127.0.0.1:8007" + config.API_PREFIX,
+    config.SERVICE_NOTIFICATIONS: "http://127.0.0.1:8008" + config.API_PREFIX,
 }
 
 #: A real token, supplied locally, used only to capture examples. Never
@@ -237,6 +238,9 @@ def make_item(name, service, method, path, description, token_variable=None,
     request = build_request(service, method, path, body, token_variable,
                             service_name, description, idempotency)
 
+    if os.environ.get("KARIM_CAPTURE_EXAMPLES") != "1":
+        return {"name": name, "request": request, "response": []}
+
     headers = dict(capture_service_headers or {})
     if idempotency:
         headers["Idempotency-Key"] = str(uuid.uuid4())
@@ -264,7 +268,7 @@ def write_collection(filename, name, description, items):
     """
     collection = {
         "info": {"_postman_id": str(uuid.uuid4()), "name": name,
-                 "description": description + CAPTURE_NOTE,
+                 "description": description + (CAPTURE_NOTE if os.environ.get("KARIM_CAPTURE_EXAMPLES") == "1" else "\nRequest templates for the named-route update. No execution responses captured. Original earlier captures are under postman/historical/pre-v1.1/." ),
                  "schema": "https://schema.getpostman.com/json/collection/"
                            "v2.1.0/collection.json"},
         "item": items,
@@ -530,7 +534,7 @@ def main():
     if not os.path.isdir(OUT_DIR):
         os.makedirs(OUT_DIR)
 
-    if not ADMIN_TOKEN:
+    if os.environ.get("KARIM_CAPTURE_EXAMPLES") == "1" and not ADMIN_TOKEN:
         print("No POSTMAN_CAPTURE_ADMIN_TOKEN set. Requests will still be")
         print("written, but examples will record that nothing was captured")
         print("rather than inventing a response.\n")

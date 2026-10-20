@@ -11,6 +11,11 @@ See ``.env.example`` for a secret-free template.
 """
 
 import os
+import math
+
+API_PREFIX = os.environ.get("KARIM_API_PREFIX", "/api/karim-hajj-ali").rstrip("/")
+if not API_PREFIX.startswith("/api/") or "karim-hajj-ali" not in API_PREFIX.split("/"):
+    raise ValueError("KARIM_API_PREFIX must include /api/ and karim-hajj-ali")
 
 # ---------------------------------------------------------------------------
 # Service identity
@@ -90,20 +95,21 @@ def jwt_verification_key():
 # Upstream service base URLs (section 2)
 # ---------------------------------------------------------------------------
 # Each value is the COMPLETE base URL including any path prefix. The resource
-# path is appended exactly once. Natalio's services carry an /api prefix;
-# Chris's and mine do not.
+# path is appended exactly once. Every owner uses their own full-name prefix.
 
 USERS_BASE_URL = os.environ.get(
     "KARIM_USERS_URL", "http://127.0.0.1:8001/api/natalio-hassoun")
 ASSETS_BASE_URL = os.environ.get(
-    "KARIM_ASSETS_URL", "http://127.0.0.1:8002")
+    "KARIM_ASSETS_URL", "http://127.0.0.1:8002/api/chris-gharfine")
 LOGS_BASE_URL = os.environ.get(
     "KARIM_LOGS_URL", "http://127.0.0.1:8005/api/natalio-hassoun")
 NOTIFICATIONS_BASE_URL = os.environ.get(
-    "KARIM_NOTIFICATIONS_URL", "http://127.0.0.1:8008")
+    "KARIM_NOTIFICATIONS_URL", "http://127.0.0.1:8008/api/karim-hajj-ali")
 
 #: Finite per-call timeout. Section 5 caps this at five seconds.
 HTTP_TIMEOUT_SECONDS = float(os.environ.get("KARIM_HTTP_TIMEOUT_SECONDS", "5"))
+if not math.isfinite(HTTP_TIMEOUT_SECONDS) or not 0 < HTTP_TIMEOUT_SECONDS <= 5:
+    raise ValueError("KARIM_HTTP_TIMEOUT_SECONDS must be finite and between 0 and 5 seconds")
 
 
 # ---------------------------------------------------------------------------

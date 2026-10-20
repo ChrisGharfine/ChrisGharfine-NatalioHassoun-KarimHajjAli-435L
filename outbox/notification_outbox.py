@@ -20,6 +20,7 @@ import requests
 
 import config
 import db
+from outbox.receipts import valid_receipt
 
 #: Notification types this process is allowed to raise, per caller. The
 #: Notifications service enforces the same table on the receiving side.
@@ -213,12 +214,9 @@ def _post_notification(row):
             body = response.json()
         except ValueError:
             return "retry", "non-JSON acknowledgement"
-        if not isinstance(body, dict) or body.get("status") != "success":
-            return "retry", "unrecognised acknowledgement envelope"
-        data = body.get("data") or {}
-        if str(data.get("event_id", "")) != str(row["event_id"]):
-            return "retry", "acknowledgement was for a different event id"
-        return "delivered", ""
+        return (("delivered", "") if valid_receipt(body, response.status_code, row["event_id"],
+                                                  "notification", "notification_id")
+                else ("retry", "invalid notification receipt"))
 
     if response.status_code == 404:
         return "permanent", "recipient does not exist"

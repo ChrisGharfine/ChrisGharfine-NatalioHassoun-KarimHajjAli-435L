@@ -1,0 +1,28 @@
+{
+  "public_file_count": 218,
+  "overlapping_paths": [
+    ".env.example",
+    ".gitignore",
+    "README.md",
+    "docs/team/INTEGRATION_V1_1.md",
+    "docs/team/SETUP.md",
+    "docs/team/VERIFICATION_V1_1.md",
+    "docs/team/evidence/assembly-results.json",
+    "docs/team/evidence/final-checker.txt",
+    "docs/team/evidence/initial-checker.txt",
+    "docs/team/evidence/live-results.json",
+    "requirements-chris.txt",
+    "requirements-docs-karim.txt",
+    "requirements-karim.txt",
+    "requirements-natalio.txt",
+    "requirements-team-lock.txt",
+    "requirements.txt",
+    "tests/__init__.py",
+    "tools/team/init_env.py",
+    "tools/team/run.py",
+    "tools/team/test_config.py",
+    "tools/team/verify_live.py"
+  ],
+  "different_shared_paths": {},
+  "actual_git_merge_performed": false
+}

@@ -13,7 +13,7 @@ is alive.
 :author: Karim Hajj Ali
 """
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 import config
@@ -42,13 +42,33 @@ def create_app(service_name, blueprint):
     :return: The configured application.
     :rtype: flask.Flask
     """
-    app = Flask(service_name)
+    app = Flask(service_name, static_folder=None)
     app.config["KARIM_SERVICE_NAME"] = service_name
     CORS(app, resources={r"/*": {"origins": "*"}})
 
-    app.register_blueprint(blueprint)
+    app.register_blueprint(blueprint, url_prefix=config.API_PREFIX)
     _register_health(app, service_name)
     _register_error_handlers(app)
+
+    @app.before_request
+    def require_json_object():
+        # Empty-body operations such as mark-read stay valid. A supplied body
+        # must be an object; arrays/scalars must not escape as AttributeError.
+        if request.url_rule is not None and request.method in ("POST", "PUT", "PATCH") and request.content_length:
+            if not request.is_json or not isinstance(request.get_json(silent=True), dict):
+                return jsonify(status="error", code="INVALID_INPUT", message="The request body must be a valid JSON object."), 400
+
+    @app.after_request
+    def standard_errors(response):
+        response.headers["Cache-Control"] = "no-store"
+        if response.status_code >= 400 and response.is_json:
+            body = response.get_json()
+            if isinstance(body, dict) and body.get("status") == "error":
+                body.setdefault("code", {400: "INVALID_INPUT", 401: "AUTHENTICATION_REQUIRED", 403: "FORBIDDEN",
+                                          404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED", 409: "CONFLICT",
+                                          500: "INTERNAL_ERROR", 503: "SERVICE_UNAVAILABLE"}.get(response.status_code, "HTTP_ERROR"))
+                response.set_data(app.json.dumps(body))
+        return response
     return app
 
 
@@ -77,7 +97,7 @@ def _register_health(app, service_name):
             return False, table
         return True, None
 
-    @app.route("/health", methods=["GET"])
+    @app.route(config.API_PREFIX + "/health", methods=["GET"])
     def health():
         """Report whether this service can serve requests.
 
@@ -87,11 +107,10 @@ def _register_health(app, service_name):
         ok, missing = _tables_queryable()
         if not ok:
             return jsonify({"status": "error", "service": service_name,
-                            "message": "required table '%s' is not "
-                                       "queryable" % missing}), 503
+                            "message": "Required service storage is unavailable."}), 503
         return jsonify({"status": "ok", "service": service_name}), 200
 
-    @app.route("/ready", methods=["GET"])
+    @app.route(config.API_PREFIX + "/ready", methods=["GET"])
     def ready():
         """Report readiness, ``200`` only when the tables can be queried.
 
@@ -101,8 +120,7 @@ def _register_health(app, service_name):
         ok, missing = _tables_queryable()
         if not ok:
             return jsonify({"status": "error", "service": service_name,
-                            "message": "required table '%s' is not "
-                                       "queryable" % missing}), 503
+                            "message": "Required service storage is unavailable."}), 503
         return jsonify({"status": "ok", "service": service_name}), 200
 
 
@@ -169,7 +187,7 @@ def _register_error_handlers(app):
         :return: A ``500`` response.
         :rtype: tuple
         """
-        app.logger.exception("unhandled error: %s", error)
+        app.logger.error("Unhandled exception type: %s", type(error).__name__)
         return jsonify({
             "status": "error",
             "message": "An unexpected error occurred while processing the "

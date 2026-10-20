@@ -96,7 +96,7 @@ def lookup_asset(asset_id, calling_service):
         raise AssetsUnavailable("The assets service returned no asset data")
 
     raw_id = data.get("id")
-    if isinstance(raw_id, bool) or not isinstance(raw_id, int) or raw_id <= 0:
+    if type(raw_id) is not int or raw_id <= 0 or raw_id != int(asset_id):
         raise AssetsUnavailable(
             "The assets service returned an invalid asset id")
 
