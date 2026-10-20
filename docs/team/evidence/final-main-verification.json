@@ -1,0 +1,16 @@
+{
+  "main": "6ed5e48e5b062404ca52a2d97f36e92e998c4283",
+  "heads": {
+    "natalio/student1": "eb434b0054270d6702e184d01648c2401071705d",
+    "feature/chris": "519e722aef952df0b776f439e14499077610774a",
+    "karim": "84439d8f0ea3d443bffe14669a31cfb397210eb1"
+  },
+  "latest_personal_commits_in_main": {
+    "natalio/student1": true,
+    "feature/chris": true,
+    "karim": true
+  },
+  "main_tree": "9f700deff8431c75e9e892bcf15af0ea83f1ff59",
+  "matches_tested_combination": true,
+  "private_config_paths_tracked": []
+}

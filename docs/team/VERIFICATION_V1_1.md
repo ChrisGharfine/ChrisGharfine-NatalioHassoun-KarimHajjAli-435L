@@ -1,6 +1,8 @@
 # Executed integration verification — 20 October 2026
 
-The v1.1 repair was tested on three uncommitted personal working trees based on:
+The v1.1 repair was first tested on three uncommitted personal working trees
+based on the commits below. This table identifies the original execution
+baseline, not the current personal-branch tips:
 
 | Branch | Baseline commit |
 |---|---|
@@ -8,8 +10,13 @@ The v1.1 repair was tested on three uncommitted personal working trees based on:
 | feature/chris | 2ad8c9a2c92e5bc8d30fa9d9945dff112a7894bb |
 | karim | 0661c950d626fe634f8d30c23f716bf1e517808c |
 
-The assistant did not commit, push, merge branches or modify main. Remote tips
-were rechecked and still matched these baselines during verification.
+At that execution stage, the assistant had not committed, pushed or merged the
+changes. The team subsequently committed and merged them. Main commit
+`6ed5e48e5b062404ca52a2d97f36e92e998c4283` contains Natalio `eb434b0`, Chris
+`519e722` and Karim `84439d8`; its source tree matched the tested combination.
+See [current status](../../INTEGRATION_STATUS.md) for the complete hashes.
+The dated JSON files retain the original execution provenance and are not
+rewritten to imply that those tests started after merging.
 
 ## Actual results
 
@@ -65,7 +72,7 @@ Postman collections are templates; historical responses remain clearly labeled.
 
 ## What still belongs to the team
 
-Review the patch, update private service addresses/keys consistently, apply the
+Update private service addresses/keys consistently, apply the
 owned migrations to the backed-up shared installation, and restart all services
 with the v1.1 prefixes. The live tests used disposable data, not a production
 upgrade or all possible pre-existing datasets. No automatic SQLite importer was
