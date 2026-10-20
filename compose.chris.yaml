@@ -1,0 +1,77 @@
+name: chris-sprint1
+
+x-chris-build: &build
+  context: .
+  dockerfile: services/chris_support/Dockerfile
+
+x-chris-app: &app
+  build: *build
+  environment: &environment
+    CHRIS_DATABASE_URL: ${CHRIS_DATABASE_URL:?Set the approved PostgreSQL connection URL}
+    CHRIS_JWT_VERIFICATION_KEY: ${CHRIS_JWT_VERIFICATION_KEY:?Set the shared JWT verification key}
+    CHRIS_JWT_ALGORITHM: ${CHRIS_JWT_ALGORITHM:-HS256}
+    CHRIS_JWT_ISSUER: ${CHRIS_JWT_ISSUER:-security-sprint1-users}
+    CHRIS_JWT_AUDIENCE: ${CHRIS_JWT_AUDIENCE:-security-sprint1-services}
+    CHRIS_SERVICE_TOKENS: ${CHRIS_SERVICE_TOKENS:?Set the required distinct service keys as JSON}
+    CHRIS_API_PREFIX: /api/chris-gharfine
+    CHRIS_USERS_URL: ${CHRIS_USERS_URL:-http://host.docker.internal:8001/api/natalio-hassoun}
+    CHRIS_ASSETS_URL: ${CHRIS_ASSETS_URL:-http://assets:8000/api/chris-gharfine}
+    CHRIS_INCIDENTS_URL: ${CHRIS_INCIDENTS_URL:-http://host.docker.internal:8003/api/karim-hajj-ali}
+    CHRIS_THREATS_URL: ${CHRIS_THREATS_URL:-http://threats:8000/api/chris-gharfine}
+    CHRIS_AUDIT_URL: ${CHRIS_AUDIT_URL:-http://host.docker.internal:8005/api/natalio-hassoun}
+    CHRIS_VULNERABILITIES_URL: ${CHRIS_VULNERABILITIES_URL:-http://host.docker.internal:8007/api/karim-hajj-ali}
+    CHRIS_LOGIN_SUCCESS_ACTION: ${CHRIS_LOGIN_SUCCESS_ACTION:-login_success}
+    CHRIS_LOGIN_FAILURE_ACTION: ${CHRIS_LOGIN_FAILURE_ACTION:-login_failed}
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/chris-gharfine/ready', timeout=3)"]
+    interval: 15s
+    timeout: 5s
+    retries: 3
+
+services:
+  postgres:
+    image: postgres:17
+    profiles: [database]
+    environment:
+      POSTGRES_USER: security
+      POSTGRES_DB: security
+      POSTGRES_PASSWORD: ${CHRIS_POSTGRES_PASSWORD:-}
+    ports: ["127.0.0.1:${CHRIS_POSTGRES_PORT:-5433}:5432"]
+    volumes: [chris_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  assets:
+    <<: *app
+    command: [uvicorn, services.assets.main:app, --host, "0.0.0.0", --port, "8000"]
+    ports: ["127.0.0.1:8002:8000"]
+
+  threats:
+    <<: *app
+    command: [uvicorn, services.threats.main:app, --host, "0.0.0.0", --port, "8000"]
+    ports: ["127.0.0.1:8004:8000"]
+
+  reports:
+    <<: *app
+    command: [uvicorn, services.reports.main:app, --host, "0.0.0.0", --port, "8000"]
+    ports: ["127.0.0.1:8006:8000"]
+
+  audit-worker:
+    <<: *app
+    profiles: [audit]
+    command: [python, -m, services.chris_support.audit_worker]
+    healthcheck:
+      disable: true
+
+  migrate:
+    build: *build
+    profiles: [tools]
+    environment:
+      CHRIS_DATABASE_URL: ${CHRIS_DATABASE_URL:?Set the approved PostgreSQL connection URL}
+    command: [alembic, -c, services/chris_support/alembic.ini, upgrade, head]
+
+volumes:
+  chris_pgdata:

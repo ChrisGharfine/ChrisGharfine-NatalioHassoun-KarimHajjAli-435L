@@ -1,0 +1,1290 @@
+{
+  "info": {
+    "name": "Chris Gharfine - Sprint I Assets, Threats and Reports",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "team-integration-v1.0.0: 18 prescribed endpoints, negative requests and scoped internal Assets checks. Request templates only: no saved responses or execution evidence. Use actual Users-issued v1 HS256 tokens with required issuer/audience/type; roles/status are checked through Users on each request. Set real service keys locally; never export tokens or keys. Run writes only against a disposable lab dataset. Obtain an active existing owner ID first. Report tests need real sources and complete v1 envelopes. Capture report evidence before deleting demonstration records, or create additional records through real APIs. Reuse a token after changing a dedicated test user's role/status in Users to demonstrate current authorization."
+  },
+  "variable": [
+    {
+      "key": "assets_base_url",
+      "value": "http://localhost:8002/api/chris-gharfine",
+      "type": "string"
+    },
+    {
+      "key": "threats_base_url",
+      "value": "http://localhost:8004/api/chris-gharfine",
+      "type": "string"
+    },
+    {
+      "key": "reports_base_url",
+      "value": "http://localhost:8006/api/chris-gharfine",
+      "type": "string"
+    },
+    {
+      "key": "asset_owner_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "asset_id",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "threat_id",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "threat_value",
+      "value": "investigation.example",
+      "type": "string"
+    },
+    {
+      "key": "missing_asset_id",
+      "value": "9223372036854775807",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "analyst_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "auditor_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "employee_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "incidents_service_key",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vulnerabilities_service_key",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reports_service_key",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Assets (Chris Gharfine)",
+      "item": [
+        {
+          "name": "Create asset",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{assets_base_url}}/assets",
+            "description": "Chris Gharfine — Create an asset owned by an existing Users ID. Capture the actual ID for subsequent calls.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lab Server\",\n  \"asset_type\": \"server\",\n  \"ip_address\": \"192.0.2.10\",\n  \"department\": \"Security\",\n  \"owner_id\": {{asset_owner_id}},\n  \"criticality\": \"high\",\n  \"operating_system\": \"Linux\",\n  \"location\": \"Lab 1\",\n  \"status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Created record has an integer ID\", () => pm.expect(pm.response.json().id).to.be.a(\"number\"));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"asset_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List assets",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{assets_base_url}}/assets",
+            "description": "Chris Gharfine — Administrator/auditor list with criticality and status."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get asset",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{assets_base_url}}/assets/{{asset_id}}",
+            "description": "Chris Gharfine — Retrieve the created asset; analysts may also use this endpoint."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search assets",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{assets_base_url}}/assets/search?department=Security&criticality=high",
+            "description": "Chris Gharfine — Combine department and criticality filters. Try name/type/IP filters too."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update asset",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{assets_base_url}}/assets/{{asset_id}}",
+            "description": "Chris Gharfine — Change status and criticality; compare persisted state.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"under_maintenance\",\"criticality\":\"critical\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Denied employee asset deletion",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employee_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{assets_base_url}}/assets/{{asset_id}}",
+            "description": "Chris Gharfine — Negative test: employee cannot delete; original record remains."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid asset input",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{assets_base_url}}/assets",
+            "description": "Chris Gharfine — Negative test: missing required information and invalid IP.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"\",\"ip_address\":\"invalid\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Incident service asset lookup",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "incidents"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{incidents_service_key}}"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{asset_id}}",
+            "description": "Chris Gharfine — v1 internal reference API: Incidents service key, no user token. Returns status/data with id, name, criticality, owner_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vulnerability service asset lookup",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "vulnerabilities"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{vulnerabilities_service_key}}"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{asset_id}}",
+            "description": "Chris Gharfine — v1 internal reference API: Vulnerabilities service key; no user-role bypass on public routes."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject invalid internal service key",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "incidents"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "invalid-test-key"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{asset_id}}",
+            "description": "Chris Gharfine — Internal lookup rejects invalid credentials and durably queues unauthorized_access."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject unscoped internal service",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "reports"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{reports_service_key}}"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{asset_id}}",
+            "description": "Chris Gharfine — A valid Reports service key cannot use the lookup reserved for Incidents/Vulnerabilities."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "User JWT cannot replace internal service key",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{asset_id}}",
+            "description": "Chris Gharfine — Administrator JWT alone cannot authenticate a service-only lookup."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown internal asset reference",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Name",
+                "value": "incidents"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{incidents_service_key}}"
+              }
+            ],
+            "url": "{{assets_base_url}}/internal/assets/{{missing_asset_id}}",
+            "description": "Chris Gharfine — Set missing_asset_id to an actually absent positive ID; a valid service caller receives 404."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete asset",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{assets_base_url}}/assets/{{asset_id}}",
+            "description": "Chris Gharfine — Delete the unreferenced lab asset after capturing its evidence. Referenced assets return 409."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Threat Intelligence (Chris Gharfine)",
+      "item": [
+        {
+          "name": "Create threat",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{threats_base_url}}/threats",
+            "description": "Chris Gharfine — Create a domain indicator; normalized type/value must be unique. Change threat_value for a fresh run.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"threat_type\": \"domain\",\n  \"threat_value\": \"{{threat_value}}\",\n  \"description\": \"Investigation indicator\",\n  \"severity\": \"critical\",\n  \"source\": \"Student lab\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Created record has an integer ID\", () => pm.expect(pm.response.json().id).to.be.a(\"number\"));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"threat_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject duplicate threat",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{threats_base_url}}/threats",
+            "description": "Chris Gharfine — Negative test: repeat the previous insertion before deleting it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"threat_type\": \"domain\",\n  \"threat_value\": \"{{threat_value}}\",\n  \"description\": \"Investigation indicator\",\n  \"severity\": \"critical\",\n  \"source\": \"Student lab\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List threats",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{threats_base_url}}/threats",
+            "description": "Chris Gharfine — List indicators, severities, sources, and creation times."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get threat",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{threats_base_url}}/threats/{{threat_id}}",
+            "description": "Chris Gharfine — Retrieve the actual created indicator."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search threats",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{threats_base_url}}/threats/search?threat_type=domain&severity=critical",
+            "description": "Chris Gharfine — Filter by type and severity; also test value/source filters."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update threat",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{threats_base_url}}/threats/{{threat_id}}",
+            "description": "Chris Gharfine — Update description, severity, and source; type/value are immutable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"description\":\"Reviewed investigation indicator\",\"severity\":\"high\",\"source\":\"Chris Gharfine lab\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid file hash",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{threats_base_url}}/threats",
+            "description": "Chris Gharfine — Negative test: reject a malformed hash without insertion.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"threat_type\":\"file_hash\",\"threat_value\":\"not-a-hash\",\"description\":\"Validation test\",\"severity\":\"low\",\"source\":\"Lab\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Denied analyst threat deletion",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{analyst_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{threats_base_url}}/threats/{{threat_id}}",
+            "description": "Chris Gharfine — Negative test: analyst cannot delete threat intelligence."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete threat",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{threats_base_url}}/threats/{{threat_id}}",
+            "description": "Chris Gharfine — Delete the lab indicator after capturing its evidence."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Security Reports (Chris Gharfine)",
+      "item": [
+        {
+          "name": "Summary report",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{reports_base_url}}/reports/summary",
+            "description": "Chris Gharfine — Generate the summary report from live source services. Requires all relevant contracts and services; reconcile with real source records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Incidents report",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{reports_base_url}}/reports/incidents",
+            "description": "Chris Gharfine — Generate the incidents report from live source services. Requires all relevant contracts and services; reconcile with real source records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Assets report",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{reports_base_url}}/reports/assets",
+            "description": "Chris Gharfine — Generate the assets report from live source services. Requires all relevant contracts and services; reconcile with real source records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Threats report",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{reports_base_url}}/reports/threats",
+            "description": "Chris Gharfine — Generate the threats report from live source services. Requires all relevant contracts and services; reconcile with real source records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vulnerabilities report",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{reports_base_url}}/reports/vulnerabilities",
+            "description": "Chris Gharfine — Generate the vulnerabilities report from live source services. Requires all relevant contracts and services; reconcile with real source records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Activity report",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{reports_base_url}}/reports/activity",
+            "description": "Chris Gharfine — Generate the activity report from live source services. Requires all relevant contracts and services; reconcile with real source records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Denied analyst report",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{analyst_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{reports_base_url}}/reports/summary",
+            "description": "Chris Gharfine — Negative test: analyst has no report access."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Missing authentication",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{reports_base_url}}/reports/summary",
+            "description": "Chris Gharfine — Negative test: missing credentials; a durable authentication-denial event is queued."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
