@@ -1,0 +1,225 @@
+{
+  "info": {
+    "_postman_id": "51062241-886d-42b4-89ed-c4b3b966cb92",
+    "name": "SIRMS v1 - Service 3 - Incident Management (Karim Hajj Ali)",
+    "description": "Incident Management under team-integration-v1.0.0, on port 8003.\nAuthentication under team-integration-v1.0.0\n--------------------------------------------\nThere is no login request in these collections. Natalio's Users service is\nthe only token issuer:\n\n    POST {{users_url}}/users/login\n    {\"identifier\": \"your.username\", \"password\": \"...\"}\n\nTake `data.access_token` from his response and paste it into the\n`admin_token` / `analyst_token` environment variable. Tokens last 1800\nseconds. Never commit a filled-in environment.\n\nThe internal collection uses service credentials instead, not a user\ntoken: `X-Service-Name` plus `X-Service-Key`, with a fresh\n`Idempotency-Key` per delivery (Postman's {{$guid}} generates one).\n\nRequest templates for the named-route update. No execution responses captured. Original earlier captures are under postman/historical/pre-v1.1/.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Create Incident",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents"
+          ]
+        },
+        "description": "Report an incident. Administrator or Regular Employee. An employee is always recorded as their own reporter.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Ransomware detected on domain controller\",\n  \"description\": \"Encryption activity flagged on the domain controller.\",\n  \"category\": \"Malware Infection\",\n  \"severity\": \"Critical\",\n  \"affected_asset\": 1\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2. Retrieve All Incidents",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents"
+          ]
+        },
+        "description": "Complete list. Administrator or Auditor. This is the shape Chris's Reports consumes: body.incidents with a success status and count."
+      },
+      "response": []
+    },
+    {
+      "name": "3. Retrieve Specific Incident",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents/1",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents",
+            "1"
+          ]
+        },
+        "description": "One incident with its investigation notes. An employee may only read an incident they reported."
+      },
+      "response": []
+    },
+    {
+      "name": "4. Assign Incident to Analyst",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents/1/assign",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents",
+            "1",
+            "assign"
+          ]
+        },
+        "description": "Administrator only. The target's role is checked against Users over HTTP, so a demoted account is refused. Queues an Incident Assignment notification.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"analyst_id\": 2\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5. Update Incident Status",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{analyst_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents/1/status",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents",
+            "1",
+            "status"
+          ]
+        },
+        "description": "One step along Open -> Under Investigation -> Mitigated -> Resolved -> Closed. Skipping a step is refused with 400 naming the only allowed next status.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Under Investigation\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "6. Add Investigation Note",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{analyst_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{incidents_url}}/incidents/1/notes",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "incidents",
+            "1",
+            "notes"
+          ]
+        },
+        "description": "Administrator or Analyst. Returned as part of GET /incidents/{id}.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"note_content\": \"Isolated the host and captured a memory image.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{incidents_url}}/health",
+          "host": [
+            "{{incidents_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Readiness of this service, including whether its own tables can be queried."
+      },
+      "response": []
+    }
+  ]
+}

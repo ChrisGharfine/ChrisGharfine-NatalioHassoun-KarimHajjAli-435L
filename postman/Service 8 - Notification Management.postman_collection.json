@@ -1,0 +1,237 @@
+{
+  "info": {
+    "_postman_id": "16624b3d-daef-4fc9-a296-79d8a16ac28a",
+    "name": "SIRMS v1 - Service 8 - Notification and Alert Management (Karim Hajj Ali)",
+    "description": "Notification and Alert Management under team-integration-v1.0.0, on port 8008, including the internal delivery endpoint.\nAuthentication under team-integration-v1.0.0\n--------------------------------------------\nThere is no login request in these collections. Natalio's Users service is\nthe only token issuer:\n\n    POST {{users_url}}/users/login\n    {\"identifier\": \"your.username\", \"password\": \"...\"}\n\nTake `data.access_token` from his response and paste it into the\n`admin_token` / `analyst_token` environment variable. Tokens last 1800\nseconds. Never commit a filled-in environment.\n\nThe internal collection uses service credentials instead, not a user\ntoken: `X-Service-Name` plus `X-Service-Key`, with a fresh\n`Idempotency-Key` per delivery (Postman's {{$guid}} generates one).\n\nRequest templates for the named-route update. No execution responses captured. Original earlier captures are under postman/historical/pre-v1.1/.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Create Notification",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{notifications_url}}/notifications",
+          "host": [
+            "{{notifications_url}}"
+          ],
+          "path": [
+            "notifications"
+          ]
+        },
+        "description": "Administrator only. Notifications are also generated automatically by Incidents and Vulnerabilities through the internal endpoint below.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 2,\n  \"title\": \"Quarterly access review\",\n  \"message\": \"Please review the access rights for the systems you administer.\",\n  \"notification_type\": \"System Notification\",\n  \"severity\": \"Low\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2. Retrieve User Notifications",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{notifications_url}}/notifications/user/2",
+          "host": [
+            "{{notifications_url}}"
+          ],
+          "path": [
+            "notifications",
+            "user",
+            "2"
+          ]
+        },
+        "description": "Analysts and employees may only read their own inbox; administrators and auditors may read any."
+      },
+      "response": []
+    },
+    {
+      "name": "3. Retrieve Specific Notification",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{notifications_url}}/notifications/1",
+          "host": [
+            "{{notifications_url}}"
+          ],
+          "path": [
+            "notifications",
+            "1"
+          ]
+        },
+        "description": "One notification by id."
+      },
+      "response": []
+    },
+    {
+      "name": "4. Mark Notification as Read",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{analyst_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{notifications_url}}/notifications/1/read",
+          "host": [
+            "{{notifications_url}}"
+          ],
+          "path": [
+            "notifications",
+            "1",
+            "read"
+          ]
+        },
+        "description": "Marks read and stamps read_date. Marking an already-read notification keeps the original date. Auditors are read-only."
+      },
+      "response": []
+    },
+    {
+      "name": "5. Search Notifications",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{notifications_url}}/notifications/search?status=Unread",
+          "host": [
+            "{{notifications_url}}"
+          ],
+          "path": [
+            "notifications",
+            "search"
+          ],
+          "query": [
+            {
+              "key": "status",
+              "value": "Unread"
+            }
+          ]
+        },
+        "description": "By user, type, severity and status. An analyst's search is silently scoped to their own inbox."
+      },
+      "response": []
+    },
+    {
+      "name": "6. Delete Notification",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{notifications_url}}/notifications/9999",
+          "host": [
+            "{{notifications_url}}"
+          ],
+          "path": [
+            "notifications",
+            "9999"
+          ]
+        },
+        "description": "Administrator only. Pointed at a non-existent id so regenerating does not destroy data. The delivery receipt survives a real deletion."
+      },
+      "response": []
+    },
+    {
+      "name": "7. Internal delivery (service credential)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Service-Name",
+            "value": "incidents"
+          },
+          {
+            "key": "X-Service-Key",
+            "value": "{{incidents_service_key}}"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{notifications_url}}/internal/notifications",
+          "host": [
+            "{{notifications_url}}"
+          ],
+          "path": [
+            "internal",
+            "notifications"
+          ]
+        },
+        "description": "Section 7. Called by another service, not by a user. Authenticated by X-Service-Name and X-Service-Key, with a fresh Idempotency-Key per alert. An identical retry returns 200 with duplicate=true and creates nothing; a changed payload under the same key returns 409 IDEMPOTENCY_CONFLICT.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 2,\n  \"actor_user_id\": 1,\n  \"title\": \"Incident assigned\",\n  \"message\": \"Incident 1 was assigned to you.\",\n  \"notification_type\": \"Incident Assignment\",\n  \"severity_level\": \"High\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{notifications_url}}/health",
+          "host": [
+            "{{notifications_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Readiness of this service."
+      },
+      "response": []
+    }
+  ]
+}
