@@ -1,0 +1,1132 @@
+{
+  "baseline_commits": {
+    "natalio": "caa2de2831590d07149faedd2b63321e0f570b5f",
+    "chris": "2ad8c9a2c92e5bc8d30fa9d9945dff112a7894bb",
+    "karim": "0661c950d626fe634f8d30c23f716bf1e517808c"
+  },
+  "environment_note": "Uncommitted v1.1 fixes in three owner checkouts; one clean Python 3.12 runtime from shared requirements. No upstream doubles.",
+  "executed_at_utc": "2026-10-20T16:33:58.300548+00:00",
+  "checks": [
+    {
+      "name": "Natalio migration",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "natalio_migration.log"
+      }
+    },
+    {
+      "name": "Chris migration",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "chris_migration.log"
+      }
+    },
+    {
+      "name": "Karim migration",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "karim_migration.log"
+      }
+    },
+    {
+      "name": "Natalio repeated migration preserves data",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "natalio_repeated_migration_preserves_data.log"
+      }
+    },
+    {
+      "name": "Chris repeated migration",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "chris_repeated_migration.log"
+      }
+    },
+    {
+      "name": "Karim repeated migration checksums",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "karim_repeated_migration_checksums.log"
+      }
+    },
+    {
+      "name": "users real service ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "assets real service ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents real service ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "threats real service ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "logs real service ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports real service ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "vulnerabilities real service ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "notifications real service ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "playbooks real service ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Native administrator bootstrap",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "native_administrator_bootstrap.log"
+      }
+    },
+    {
+      "name": "users POST /users/login: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users POST /users/register: HTTP 201",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users POST /users/login: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users POST /users/register: HTTP 201",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users POST /users/login: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users POST /users/register: HTTP 201",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users POST /users/login: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users POST /users/login: HTTP 401",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "assets POST /assets: HTTP 201",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "threats POST /threats: HTTP 201",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents POST /incidents: HTTP 201",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents PUT /incidents/1/assign: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "vulnerabilities POST /vulnerabilities: HTTP 201",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "playbooks POST /playbooks: HTTP 201",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "playbooks POST /playbooks/1/actions: HTTP 201",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "playbooks PUT /actions/1/status: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Chris audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "chris_audit_flush.log"
+      }
+    },
+    {
+      "name": "Karim audit and notification flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "karim_audit_and_notification_flush.log"
+      }
+    },
+    {
+      "name": "Karim notification creation audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "karim_notification_creation_audit_flush.log"
+      }
+    },
+    {
+      "name": "users audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "users_audit_flush.log"
+      }
+    },
+    {
+      "name": "playbooks audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "playbooks_audit_flush.log"
+      }
+    },
+    {
+      "name": "notifications GET /notifications/user/2: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "analyst receives exactly one automatic Incident Assignment",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "notifications GET /notifications/user/3: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "employee receives exactly one automatic Vulnerability Alert",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/summary: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/assets: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/incidents: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/threats: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/vulnerabilities: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/activity: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "initial actual nine-service reconciliation checker",
+      "passed": true,
+      "detail": {
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "assets DELETE /assets/1: HTTP 409",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/summary: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/summary: HTTP 403",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "logs GET /logs: HTTP 403",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users PUT /users/2/status: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "assets GET /assets/1: HTTP 401",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents GET /incidents/1: HTTP 401",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "playbooks GET /playbooks: HTTP 401",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users PUT /users/2/status: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents POST /incidents/1/notes: HTTP 201",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Audit delivery during real Logs outage",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "audit_delivery_during_real_logs_outage.log"
+      }
+    },
+    {
+      "name": "Karim audit remains pending through real outage",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "logs real service ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Chris audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "chris_audit_flush.log"
+      }
+    },
+    {
+      "name": "Karim audit and notification flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "karim_audit_and_notification_flush.log"
+      }
+    },
+    {
+      "name": "Karim notification creation audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "karim_notification_creation_audit_flush.log"
+      }
+    },
+    {
+      "name": "users audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "users_audit_flush.log"
+      }
+    },
+    {
+      "name": "playbooks audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "playbooks_audit_flush.log"
+      }
+    },
+    {
+      "name": "Karim audit recovered without duplicate event UUIDs",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents PUT /incidents/1/assign: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Notification delivery during real outage",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "notification_delivery_during_real_outage.log"
+      }
+    },
+    {
+      "name": "Notification work remains pending through real outage",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "notifications real service ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Chris audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "chris_audit_flush.log"
+      }
+    },
+    {
+      "name": "Karim audit and notification flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "karim_audit_and_notification_flush.log"
+      }
+    },
+    {
+      "name": "Karim notification creation audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "karim_notification_creation_audit_flush.log"
+      }
+    },
+    {
+      "name": "users audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "users_audit_flush.log"
+      }
+    },
+    {
+      "name": "playbooks audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "playbooks_audit_flush.log"
+      }
+    },
+    {
+      "name": "Notification work recovers after restart",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "notifications GET /notifications/user/2: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "notifications PUT /notifications/3/read: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Notification mark-read queues exactly one required mutation audit",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "notifications PUT /notifications/3/read: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Repeated mark-read does not duplicate mutation audit",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "notifications PUT /notifications/3/read: HTTP 403",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Notification ownership denial queues audit",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users GET /users: HTTP 401",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users standard error envelope",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "assets GET /assets: HTTP 401",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "assets standard error envelope",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents GET /incidents: HTTP 401",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents standard error envelope",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "assets POST /assets: HTTP 400",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Chris validation includes common error code",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "users does not expose unprefixed legacy API",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "assets does not expose unprefixed legacy API",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents does not expose unprefixed legacy API",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "threats does not expose unprefixed legacy API",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "logs does not expose unprefixed legacy API",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports does not expose unprefixed legacy API",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "vulnerabilities does not expose unprefixed legacy API",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "notifications does not expose unprefixed legacy API",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "playbooks does not expose unprefixed legacy API",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "notifications POST /internal/notifications: HTTP 404",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents POST /incidents: HTTP 400",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents rejects non-object JSON safely",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "vulnerabilities POST /vulnerabilities: HTTP 400",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "vulnerabilities rejects non-object JSON safely",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "notifications POST /notifications: HTTP 400",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "notifications rejects non-object JSON safely",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents PUT /incidents/1/status: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents PUT /incidents/1/status: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents PUT /incidents/1/status: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "incidents PUT /incidents/1/status: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "vulnerabilities PUT /vulnerabilities/1: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "vulnerabilities PUT /vulnerabilities/1: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "vulnerabilities PUT /vulnerabilities/1: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "vulnerabilities PUT /vulnerabilities/1: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Chris audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "chris_audit_flush.log"
+      }
+    },
+    {
+      "name": "Karim audit and notification flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "karim_audit_and_notification_flush.log"
+      }
+    },
+    {
+      "name": "Karim notification creation audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "karim_notification_creation_audit_flush.log"
+      }
+    },
+    {
+      "name": "users audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "users_audit_flush.log"
+      }
+    },
+    {
+      "name": "playbooks audit flush",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "log": "playbooks_audit_flush.log"
+      }
+    },
+    {
+      "name": "reports GET /reports/summary: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/assets: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/incidents: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/threats: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/vulnerabilities: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "reports GET /reports/activity: HTTP 200",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "final actual nine-service reconciliation checker",
+      "passed": true,
+      "detail": {
+        "exit_code": 0
+      }
+    }
+  ],
+  "requests": [
+    {
+      "service": "users",
+      "method": "POST",
+      "path": "/users/login",
+      "status": 200
+    },
+    {
+      "service": "users",
+      "method": "POST",
+      "path": "/users/register",
+      "status": 201
+    },
+    {
+      "service": "users",
+      "method": "POST",
+      "path": "/users/login",
+      "status": 200
+    },
+    {
+      "service": "users",
+      "method": "POST",
+      "path": "/users/register",
+      "status": 201
+    },
+    {
+      "service": "users",
+      "method": "POST",
+      "path": "/users/login",
+      "status": 200
+    },
+    {
+      "service": "users",
+      "method": "POST",
+      "path": "/users/register",
+      "status": 201
+    },
+    {
+      "service": "users",
+      "method": "POST",
+      "path": "/users/login",
+      "status": 200
+    },
+    {
+      "service": "users",
+      "method": "POST",
+      "path": "/users/login",
+      "status": 401
+    },
+    {
+      "service": "assets",
+      "method": "POST",
+      "path": "/assets",
+      "status": 201
+    },
+    {
+      "service": "threats",
+      "method": "POST",
+      "path": "/threats",
+      "status": 201
+    },
+    {
+      "service": "incidents",
+      "method": "POST",
+      "path": "/incidents",
+      "status": 201
+    },
+    {
+      "service": "incidents",
+      "method": "PUT",
+      "path": "/incidents/1/assign",
+      "status": 200
+    },
+    {
+      "service": "vulnerabilities",
+      "method": "POST",
+      "path": "/vulnerabilities",
+      "status": 201
+    },
+    {
+      "service": "playbooks",
+      "method": "POST",
+      "path": "/playbooks",
+      "status": 201
+    },
+    {
+      "service": "playbooks",
+      "method": "POST",
+      "path": "/playbooks/1/actions",
+      "status": 201
+    },
+    {
+      "service": "playbooks",
+      "method": "PUT",
+      "path": "/actions/1/status",
+      "status": 200
+    },
+    {
+      "service": "notifications",
+      "method": "GET",
+      "path": "/notifications/user/2",
+      "status": 200
+    },
+    {
+      "service": "notifications",
+      "method": "GET",
+      "path": "/notifications/user/3",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/summary",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/assets",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/incidents",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/threats",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/vulnerabilities",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/activity",
+      "status": 200
+    },
+    {
+      "service": "assets",
+      "method": "DELETE",
+      "path": "/assets/1",
+      "status": 409
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/summary",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/summary",
+      "status": 403
+    },
+    {
+      "service": "logs",
+      "method": "GET",
+      "path": "/logs",
+      "status": 403
+    },
+    {
+      "service": "users",
+      "method": "PUT",
+      "path": "/users/2/status",
+      "status": 200
+    },
+    {
+      "service": "assets",
+      "method": "GET",
+      "path": "/assets/1",
+      "status": 401
+    },
+    {
+      "service": "incidents",
+      "method": "GET",
+      "path": "/incidents/1",
+      "status": 401
+    },
+    {
+      "service": "playbooks",
+      "method": "GET",
+      "path": "/playbooks",
+      "status": 401
+    },
+    {
+      "service": "users",
+      "method": "PUT",
+      "path": "/users/2/status",
+      "status": 200
+    },
+    {
+      "service": "incidents",
+      "method": "POST",
+      "path": "/incidents/1/notes",
+      "status": 201
+    },
+    {
+      "service": "incidents",
+      "method": "PUT",
+      "path": "/incidents/1/assign",
+      "status": 200
+    },
+    {
+      "service": "notifications",
+      "method": "GET",
+      "path": "/notifications/user/2",
+      "status": 200
+    },
+    {
+      "service": "notifications",
+      "method": "PUT",
+      "path": "/notifications/3/read",
+      "status": 200
+    },
+    {
+      "service": "notifications",
+      "method": "PUT",
+      "path": "/notifications/3/read",
+      "status": 200
+    },
+    {
+      "service": "notifications",
+      "method": "PUT",
+      "path": "/notifications/3/read",
+      "status": 403
+    },
+    {
+      "service": "users",
+      "method": "GET",
+      "path": "/users",
+      "status": 401
+    },
+    {
+      "service": "assets",
+      "method": "GET",
+      "path": "/assets",
+      "status": 401
+    },
+    {
+      "service": "incidents",
+      "method": "GET",
+      "path": "/incidents",
+      "status": 401
+    },
+    {
+      "service": "assets",
+      "method": "POST",
+      "path": "/assets",
+      "status": 400
+    },
+    {
+      "service": "notifications",
+      "method": "POST",
+      "path": "/internal/notifications",
+      "status": 404
+    },
+    {
+      "service": "incidents",
+      "method": "POST",
+      "path": "/incidents",
+      "status": 400
+    },
+    {
+      "service": "vulnerabilities",
+      "method": "POST",
+      "path": "/vulnerabilities",
+      "status": 400
+    },
+    {
+      "service": "notifications",
+      "method": "POST",
+      "path": "/notifications",
+      "status": 400
+    },
+    {
+      "service": "incidents",
+      "method": "PUT",
+      "path": "/incidents/1/status",
+      "status": 200
+    },
+    {
+      "service": "incidents",
+      "method": "PUT",
+      "path": "/incidents/1/status",
+      "status": 200
+    },
+    {
+      "service": "incidents",
+      "method": "PUT",
+      "path": "/incidents/1/status",
+      "status": 200
+    },
+    {
+      "service": "incidents",
+      "method": "PUT",
+      "path": "/incidents/1/status",
+      "status": 200
+    },
+    {
+      "service": "vulnerabilities",
+      "method": "PUT",
+      "path": "/vulnerabilities/1",
+      "status": 200
+    },
+    {
+      "service": "vulnerabilities",
+      "method": "PUT",
+      "path": "/vulnerabilities/1",
+      "status": 200
+    },
+    {
+      "service": "vulnerabilities",
+      "method": "PUT",
+      "path": "/vulnerabilities/1",
+      "status": 200
+    },
+    {
+      "service": "vulnerabilities",
+      "method": "PUT",
+      "path": "/vulnerabilities/1",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/summary",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/assets",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/incidents",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/threats",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/vulnerabilities",
+      "status": 200
+    },
+    {
+      "service": "reports",
+      "method": "GET",
+      "path": "/reports/activity",
+      "status": 200
+    }
+  ],
+  "observations": {
+    "mark_read_audit_events_added": 1,
+    "users_error_keys": [
+      "audit_delivery",
+      "code",
+      "message",
+      "status"
+    ],
+    "assets_error_keys": [
+      "code",
+      "message",
+      "status"
+    ],
+    "incidents_error_keys": [
+      "code",
+      "message",
+      "status"
+    ]
+  },
+  "isolated_schema_removed": true,
+  "passed": 128,
+  "failed": 0
+}

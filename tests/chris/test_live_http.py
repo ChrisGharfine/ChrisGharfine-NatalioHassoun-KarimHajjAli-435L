@@ -44,7 +44,9 @@ def running_server(app):
     listener = socket.socket()
     listener.bind(("127.0.0.1", 0))
     listener.listen(128)
-    url = f"http://127.0.0.1:{listener.getsockname()[1]}"
+    origin = f"http://127.0.0.1:{listener.getsockname()[1]}"
+    config = getattr(app.state, "settings", None)
+    url = origin + (config.api_prefix if config else "")
     server = uvicorn.Server(uvicorn.Config(app, log_level="error", access_log=False))
     thread = threading.Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
     thread.start()

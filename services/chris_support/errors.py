@@ -12,11 +12,18 @@ class ApiError(Exception):
         self.headers = headers
 
 
+def error_body(status, message, **extra):
+    codes = {400: "INVALID_INPUT", 401: "AUTHENTICATION_REQUIRED", 403: "FORBIDDEN",
+             404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED", 409: "CONFLICT",
+             500: "INTERNAL_ERROR", 502: "UPSTREAM_INVALID", 503: "SERVICE_UNAVAILABLE"}
+    return {"status": "error", "code": codes.get(status, "HTTP_ERROR"), "message": message, **extra}
+
+
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def api_error(_: Request, error: ApiError):
         return JSONResponse(
-            {"status": "error", "message": error.message},
+            error_body(error.status_code, error.message),
             status_code=error.status_code, headers=error.headers,
         )
 
@@ -27,14 +34,14 @@ def install_error_handlers(app: FastAPI) -> None:
             for item in error.errors()
         ]
         return JSONResponse(
-            {"status": "error", "message": "Request validation failed", "details": details},
-            status_code=422,
+            error_body(400, "Request validation failed", details=details),
+            status_code=400,
         )
 
     @app.exception_handler(HTTPException)
     async def http_error(_: Request, error: HTTPException):
         return JSONResponse(
-            {"status": "error", "message": str(error.detail)},
+            error_body(error.status_code, str(error.detail)),
             status_code=error.status_code, headers=error.headers,
         )
 
@@ -42,13 +49,13 @@ def install_error_handlers(app: FastAPI) -> None:
     async def database_error(_: Request, __: SQLAlchemyError):
         # Do not expose SQL, DSNs, or bound parameters in HTTP responses.
         return JSONResponse(
-            {"status": "error", "message": "Database operation unavailable"},
+            error_body(503, "Database operation unavailable"),
             status_code=503,
         )
 
     @app.exception_handler(Exception)
     async def unexpected_error(_: Request, __: Exception):
         return JSONResponse(
-            {"status": "error", "message": "An unexpected server error occurred"},
+            error_body(500, "An unexpected server error occurred"),
             status_code=500,
         )

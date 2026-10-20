@@ -199,7 +199,7 @@ class ConfigurationAndHTTPTests(unittest.TestCase):
         urls, _, _, subject = check.load_configuration(env)
         self.assertEqual(subject, 1)
         self.assertEqual(urls["logs"], "http://127.0.0.1:8005/api/natalio-hassoun")
-        self.assertEqual(urls["notifications"], "http://127.0.0.1:8008")
+        self.assertEqual(urls["notifications"], "http://127.0.0.1:8008/api/karim-hajj-ali")
         env["TEAM_USERS_URL"] = "http://users:8001/api/natalio-hassoun/"
         self.assertEqual(check.load_configuration(env)[0]["users"], "http://users:8001/api/natalio-hassoun")
 

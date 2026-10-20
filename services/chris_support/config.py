@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="CHRIS_", extra="ignore", hide_input_in_errors=True)
 
     database_url: str = Field(repr=False)
+    api_prefix: str = "/api/chris-gharfine"
     jwt_verification_key: SecretStr
     jwt_algorithm: Literal["HS256"] = "HS256"
     jwt_issuer: str = Field(default="security-sprint1-users", min_length=1)
@@ -18,11 +19,11 @@ class Settings(BaseSettings):
     max_upstream_records: int = Field(default=50_000, ge=1, le=50_000)
     recent_limit: int = Field(default=10, ge=1, le=10)
     users_url: str = "http://127.0.0.1:8001/api/natalio-hassoun"
-    assets_url: str = "http://127.0.0.1:8002"
-    incidents_url: str = "http://127.0.0.1:8003"
-    threats_url: str = "http://127.0.0.1:8004"
+    assets_url: str = "http://127.0.0.1:8002/api/chris-gharfine"
+    incidents_url: str = "http://127.0.0.1:8003/api/karim-hajj-ali"
+    threats_url: str = "http://127.0.0.1:8004/api/chris-gharfine"
     audit_url: str = "http://127.0.0.1:8005/api/natalio-hassoun"
-    vulnerabilities_url: str = "http://127.0.0.1:8007"
+    vulnerabilities_url: str = "http://127.0.0.1:8007/api/karim-hajj-ali"
     service_tokens: dict[str, SecretStr] = Field(default_factory=dict, repr=False)
     login_success_action: str = "login_success"
     login_failure_action: str = "login_failed"
@@ -39,6 +40,14 @@ class Settings(BaseSettings):
         url = make_url(value)
         if url.drivername != "postgresql+psycopg":
             raise ValueError("Use a postgresql+psycopg database URL")
+        return value
+
+    @field_validator("api_prefix")
+    @classmethod
+    def named_prefix(cls, value):
+        value = value.rstrip("/")
+        if not value.startswith("/api/") or "chris-gharfine" not in value.split("/"):
+            raise ValueError("CHRIS_API_PREFIX must include /api/ and chris-gharfine")
         return value
 
     @field_validator(

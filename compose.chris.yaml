@@ -13,16 +13,17 @@ x-chris-app: &app
     CHRIS_JWT_ISSUER: ${CHRIS_JWT_ISSUER:-security-sprint1-users}
     CHRIS_JWT_AUDIENCE: ${CHRIS_JWT_AUDIENCE:-security-sprint1-services}
     CHRIS_SERVICE_TOKENS: ${CHRIS_SERVICE_TOKENS:?Set the required distinct service keys as JSON}
+    CHRIS_API_PREFIX: /api/chris-gharfine
     CHRIS_USERS_URL: ${CHRIS_USERS_URL:-http://host.docker.internal:8001/api/natalio-hassoun}
-    CHRIS_ASSETS_URL: ${CHRIS_ASSETS_URL:-http://assets:8000}
-    CHRIS_INCIDENTS_URL: ${CHRIS_INCIDENTS_URL:-http://host.docker.internal:8003}
-    CHRIS_THREATS_URL: ${CHRIS_THREATS_URL:-http://threats:8000}
+    CHRIS_ASSETS_URL: ${CHRIS_ASSETS_URL:-http://assets:8000/api/chris-gharfine}
+    CHRIS_INCIDENTS_URL: ${CHRIS_INCIDENTS_URL:-http://host.docker.internal:8003/api/karim-hajj-ali}
+    CHRIS_THREATS_URL: ${CHRIS_THREATS_URL:-http://threats:8000/api/chris-gharfine}
     CHRIS_AUDIT_URL: ${CHRIS_AUDIT_URL:-http://host.docker.internal:8005/api/natalio-hassoun}
-    CHRIS_VULNERABILITIES_URL: ${CHRIS_VULNERABILITIES_URL:-http://host.docker.internal:8007}
+    CHRIS_VULNERABILITIES_URL: ${CHRIS_VULNERABILITIES_URL:-http://host.docker.internal:8007/api/karim-hajj-ali}
     CHRIS_LOGIN_SUCCESS_ACTION: ${CHRIS_LOGIN_SUCCESS_ACTION:-login_success}
     CHRIS_LOGIN_FAILURE_ACTION: ${CHRIS_LOGIN_FAILURE_ACTION:-login_failed}
   healthcheck:
-    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=3)"]
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/chris-gharfine/ready', timeout=3)"]
     interval: 15s
     timeout: 5s
     retries: 3

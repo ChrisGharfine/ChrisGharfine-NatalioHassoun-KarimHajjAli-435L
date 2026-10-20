@@ -32,7 +32,10 @@ def create_app(service_name: str, *, settings: Settings | None = None,
     app = FastAPI(
         title=f"{service_name.title()} Service - Chris Gharfine", version="1.1.0",
         lifespan=lifespan,
-        description="Sprint I service implementing team-integration-v1.0.0.",
+        description="Sprint I service implementing team-integration-v1.0.0 with the coordinated v1.1 named routes and errors.",
+        openapi_url=settings.api_prefix + "/openapi.json", docs_url=settings.api_prefix + "/docs",
+        redoc_url=settings.api_prefix + "/redoc",
+        swagger_ui_oauth2_redirect_url=settings.api_prefix + "/docs/oauth2-redirect",
     )
     app.state.settings = settings
     app.state.service_name = service_name
@@ -52,15 +55,15 @@ def create_app(service_name: str, *, settings: Settings | None = None,
         readiness_model = AuditOutbox
     else:
         raise ValueError("Unknown Chris service")
-    app.include_router(router)
+    app.include_router(router, prefix=settings.api_prefix)
     if service_name == "assets":
-        app.include_router(internal_router)
+        app.include_router(internal_router, prefix=settings.api_prefix)
 
-    @app.get("/health", tags=["operations"])
+    @app.get(settings.api_prefix + "/health", tags=["operations"])
     def health():
         return {"status": "ok", "service": service_name}
 
-    @app.get("/ready", tags=["operations"])
+    @app.get(settings.api_prefix + "/ready", tags=["operations"])
     def ready():
         with app.state.session_factory() as session:
             # Require the v1 delivery columns too, not just the pre-v1 table ID.

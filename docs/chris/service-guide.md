@@ -112,17 +112,20 @@ Use separate Codex terminal tabs/processes with the same approved environment:
 .\.venv-chris\Scripts\python.exe -m uvicorn services.reports.main:app --port 8006
 ```
 
-Each command runs in the foreground. Each service provides `/docs` and
-`/openapi.json`, public `/health` liveness, and `/ready` database/schema readiness.
+For the coordinated private-env commands, see ../team/SETUP.md.
+
+Each command runs in the foreground. Each service provides `/docs`, `/openapi.json`, `/health` liveness and `/ready`
+database/schema readiness under `/api/chris-gharfine`.
 Reports checks source availability when a report is requested, not during its
 readiness probe. Bind explicitly to an appropriate interface for the deployment.
 
 Reports uses configurable source base URLs: `CHRIS_USERS_URL`, `CHRIS_ASSETS_URL`,
 `CHRIS_INCIDENTS_URL`, `CHRIS_THREATS_URL`, `CHRIS_AUDIT_URL`, and
 `CHRIS_VULNERABILITIES_URL`. For local processes, set Assets to
-`http://127.0.0.1:8002` and Threats to `http://127.0.0.1:8004`, plus the actual URLs
+`http://127.0.0.1:8002/api/chris-gharfine` and Threats to
+`http://127.0.0.1:8004/api/chris-gharfine`, plus the actual URLs
 of the other students' services. Host-run defaults are the exact v1 ports, with
-`/api/natalio-hassoun` included once in Users and Audit URLs. Compose uses its
+the destination owner prefix included once in every service URL. Compose uses its
 own service DNS names on port 8000 for Chris and host.docker.internal defaults
 for teammates running on host ports; override these for the actual team network.
 
@@ -216,7 +219,7 @@ conflicting general role list. Threat type/value are immutable through PUT.
 
 For both services, PUT updates only supplied fields and requires at least one;
 required fields cannot become null. Unknown body fields, invalid IDs/enums,
-empty strings, and prohibited control characters return `422`. No dynamic SQL is
+empty strings, and prohibited control characters return `400`. No dynamic SQL is
 built from input; ORM filters use bound parameters.
 
 ## Reports and error responses (Chris Gharfine)
@@ -234,7 +237,7 @@ Errors contain `status: "error"` and `message`; validation errors additionally
 contain `details` with location/message/type, without echoing raw submitted data.
 Missing/invalid authentication returns `401` with `WWW-Authenticate: Bearer`;
 insufficient role `403`; missing resources `404`; conflicts `409`; input errors
-`422`; malformed upstream data `502`; unavailable dependencies/database `503`;
+`400`; malformed upstream data `502`; unavailable dependencies/database `503`;
 unexpected internal failures `500`. Upstream `401`/`403` is preserved. No source
 URL, bearer token, connection string, SQL, or raw upstream body is returned.
 

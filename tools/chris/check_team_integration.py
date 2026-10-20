@@ -25,7 +25,7 @@ NATALIO = {"users", "logs", "playbooks"}
 CHRIS = {"assets", "threats", "reports"}
 DEFAULT_URLS = {
     name: f"http://127.0.0.1:{8001 + index}"
-    + ("/api/natalio-hassoun" if name in NATALIO else "")
+    + ("/api/natalio-hassoun" if name in NATALIO else "/api/chris-gharfine" if name in CHRIS else "/api/karim-hajj-ali")
     for index, name in enumerate(SERVICES)
 }
 SOURCES = {

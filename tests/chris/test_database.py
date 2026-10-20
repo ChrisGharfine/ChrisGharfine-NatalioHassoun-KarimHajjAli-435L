@@ -11,7 +11,7 @@ from alembic.migration import MigrationContext
 from sqlalchemy import CheckConstraint, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
-from fastapi.testclient import TestClient
+from tools.chris.http_test_client import TestClient
 
 from services.chris_support.audit import AuditOutbox, enqueue
 from services.chris_support.audit_worker import deliver_batch

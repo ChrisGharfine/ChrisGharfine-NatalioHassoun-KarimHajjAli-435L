@@ -15,7 +15,7 @@ def request(name, service, method, path, *, expected=200, body=None,
             f'if (pm.response.code === {expected}) pm.collectionVariables.set("{capture}", pm.response.json().id);',
         ]
     if expected >= 400:
-        tests.append('pm.test("Consistent error", () => { const data = pm.response.json(); pm.expect(data.status).to.eql("error"); pm.expect(data.message).to.be.a("string"); });')
+        tests.append('pm.test("Consistent error", () => { const data = pm.response.json(); pm.expect(data.status).to.eql("error"); pm.expect(data.code).to.be.a("string"); pm.expect(data.message).to.be.a("string"); });')
     auth = {"type": "noauth"} if role is None else {
         "type": "bearer", "bearer": [{"key": "token", "value": "{{" + role + "_token}}", "type": "string"}],
     }
@@ -60,7 +60,7 @@ def main():
         request("Search assets", "assets", "GET", "/assets/search?department=Security&criticality=high", description="Combine department and criticality filters. Try name/type/IP filters too."),
         request("Update asset", "assets", "PUT", "/assets/{{asset_id}}", body='{"status":"under_maintenance","criticality":"critical"}', description="Change status and criticality; compare persisted state."),
         request("Denied employee asset deletion", "assets", "DELETE", "/assets/{{asset_id}}", expected=403, role="employee", description="Negative test: employee cannot delete; original record remains."),
-        request("Invalid asset input", "assets", "POST", "/assets", expected=422, body='{"name":"","ip_address":"invalid"}', description="Negative test: missing required information and invalid IP."),
+        request("Invalid asset input", "assets", "POST", "/assets", expected=400, body='{"name":"","ip_address":"invalid"}', description="Negative test: missing required information and invalid IP."),
         request("Incident service asset lookup", "assets", "GET", "/internal/assets/{{asset_id}}", role=None,
                 service_identity="incidents", service_key="{{incidents_service_key}}",
                 description="v1 internal reference API: Incidents service key, no user token. Returns status/data with id, name, criticality, owner_id."),
@@ -87,7 +87,7 @@ def main():
         request("Get threat", "threats", "GET", "/threats/{{threat_id}}", description="Retrieve the actual created indicator."),
         request("Search threats", "threats", "GET", "/threats/search?threat_type=domain&severity=critical", description="Filter by type and severity; also test value/source filters."),
         request("Update threat", "threats", "PUT", "/threats/{{threat_id}}", body='{"description":"Reviewed investigation indicator","severity":"high","source":"Chris Gharfine lab"}', description="Update description, severity, and source; type/value are immutable."),
-        request("Invalid file hash", "threats", "POST", "/threats", expected=422, body='{"threat_type":"file_hash","threat_value":"not-a-hash","description":"Validation test","severity":"low","source":"Lab"}', description="Negative test: reject a malformed hash without insertion."),
+        request("Invalid file hash", "threats", "POST", "/threats", expected=400, body='{"threat_type":"file_hash","threat_value":"not-a-hash","description":"Validation test","severity":"low","source":"Lab"}', description="Negative test: reject a malformed hash without insertion."),
         request("Denied analyst threat deletion", "threats", "DELETE", "/threats/{{threat_id}}", expected=403, role="analyst", description="Negative test: analyst cannot delete threat intelligence."),
         request("Delete threat", "threats", "DELETE", "/threats/{{threat_id}}", expected=204, description="Delete the lab indicator after capturing its evidence."),
     ]
@@ -100,8 +100,8 @@ def main():
         request("Missing authentication", "reports", "GET", "/reports/summary", role=None, expected=401, description="Negative test: missing credentials; a durable authentication-denial event is queued."),
     ]
     variables = {
-        "assets_base_url": "http://localhost:8002", "threats_base_url": "http://localhost:8004",
-        "reports_base_url": "http://localhost:8006", "asset_owner_id": "1", "asset_id": "0",
+        "assets_base_url": "http://localhost:8002/api/chris-gharfine", "threats_base_url": "http://localhost:8004/api/chris-gharfine",
+        "reports_base_url": "http://localhost:8006/api/chris-gharfine", "asset_owner_id": "1", "asset_id": "0",
         "threat_id": "0", "threat_value": "investigation.example", "missing_asset_id": "9223372036854775807",
         "admin_token": "", "analyst_token": "", "auditor_token": "", "employee_token": "",
         "incidents_service_key": "", "vulnerabilities_service_key": "", "reports_service_key": "",

@@ -1,0 +1,19 @@
+PASS users readiness/health
+PASS assets readiness/health
+PASS incidents readiness/health
+PASS threats readiness/health
+PASS logs readiness/health
+PASS reports readiness/health
+PASS vulnerabilities readiness/health
+PASS notifications readiness/health
+PASS playbooks readiness/health
+PASS current identity and subject consistency
+PASS six complete report-source schemas
+PASS reports/summary reconciliation
+PASS reports/incidents reconciliation
+PASS reports/assets reconciliation
+PASS reports/threats reconciliation
+PASS reports/vulnerabilities reconciliation
+PASS reports/activity reconciliation
+PASS source stability across report reads
+PASS configured live reads/reconciliation. Workflow, role, outage and database release gates still require separate execution.

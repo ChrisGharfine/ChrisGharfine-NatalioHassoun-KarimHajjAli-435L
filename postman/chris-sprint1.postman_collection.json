@@ -7,17 +7,17 @@
   "variable": [
     {
       "key": "assets_base_url",
-      "value": "http://localhost:8002",
+      "value": "http://localhost:8002/api/chris-gharfine",
       "type": "string"
     },
     {
       "key": "threats_base_url",
-      "value": "http://localhost:8004",
+      "value": "http://localhost:8004/api/chris-gharfine",
       "type": "string"
     },
     {
       "key": "reports_base_url",
-      "value": "http://localhost:8006",
+      "value": "http://localhost:8006/api/chris-gharfine",
       "type": "string"
     },
     {
@@ -318,7 +318,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
-                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }
             }
@@ -366,8 +366,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
-                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }
             }
@@ -476,7 +476,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
-                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }
             }
@@ -513,7 +513,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
-                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }
             }
@@ -549,7 +549,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
-                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }
             }
@@ -586,7 +586,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
-                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }
             }
@@ -725,7 +725,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
-                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }
             }
@@ -926,8 +926,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
-                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }
             }
@@ -963,7 +963,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
-                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }
             }
@@ -1249,7 +1249,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
-                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }
             }
@@ -1278,7 +1278,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
-                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.message).to.be.a(\"string\"); });"
+                  "pm.test(\"Consistent error\", () => { const data = pm.response.json(); pm.expect(data.status).to.eql(\"error\"); pm.expect(data.code).to.be.a(\"string\"); pm.expect(data.message).to.be.a(\"string\"); });"
                 ]
               }
             }

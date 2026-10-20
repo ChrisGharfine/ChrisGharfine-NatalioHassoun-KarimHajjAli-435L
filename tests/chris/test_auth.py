@@ -5,7 +5,7 @@ import time
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
+from tools.chris.http_test_client import TestClient
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 

@@ -133,7 +133,7 @@ def run_asgi(app):
         while not server.started and thread.is_alive() and time.monotonic() < deadline:
             time.sleep(0.02)
         require(server.started, "A Chris HTTP server did not start")
-        yield f"http://127.0.0.1:{sock.getsockname()[1]}"
+        yield f"http://127.0.0.1:{sock.getsockname()[1]}{app.state.settings.api_prefix}"
     finally:
         server.should_exit = True
         thread.join(timeout=5)

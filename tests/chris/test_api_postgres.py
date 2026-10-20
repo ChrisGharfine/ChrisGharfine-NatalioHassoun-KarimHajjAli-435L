@@ -3,7 +3,7 @@ from threading import Barrier
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
+from tools.chris.http_test_client import TestClient
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
@@ -84,7 +84,7 @@ def test_assets_persistence_update_search_and_errors(api_clients, db_engine, aut
     for query in ("%", "' OR 1=1 --", "no such asset"):
         assert client.get("/assets/search", params={"name": query}, headers=headers).json() == []
     for path in ("/assets/0", "/assets/-1", "/assets/abc", "/assets/999999999999999999999", "/assets/search", "/assets/search?unknown=yes"):
-        assert client.get(path, headers=headers).status_code == 422
+        assert client.get(path, headers=headers).status_code == 400
     assert client.get("/assets/999999", headers=headers).status_code == 404
     before = counts(db_engine)
     assert client.post("/assets", json=asset_body | {"owner_id": 999999}, headers=headers).status_code == 404
@@ -126,7 +126,7 @@ def test_threats_duplicate_normalization_search_update_and_delete(api_clients, d
         response = client.get("/threats/search", params=filters, headers=headers)
         assert response.status_code == 200 and len(response.json()) == 1
     assert client.get("/threats/search?source=%25", headers=headers).json() == []
-    assert client.get("/threats/search", headers=headers).status_code == 422
+    assert client.get("/threats/search", headers=headers).status_code == 400
     assert client.put(f"/threats/{identifier}", json={"description": "Updated analysis", "severity": "medium", "source": "Analyst"}, headers=headers).status_code == 200
     with Session(db_engine) as session:
         assert session.get(Threat, identifier).severity == "medium"
