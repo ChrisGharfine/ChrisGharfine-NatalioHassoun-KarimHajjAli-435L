@@ -26,7 +26,7 @@ def verify_access_request():
             current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"],
             issuer=current_app.config["JWT_DECODE_ISSUER"],
             audience=current_app.config["JWT_DECODE_AUDIENCE"],
-            options={"require": ["sub", "iat", "exp", "iss", "aud", "type"]},
+            options={"require": ["sub", "iat", "exp", "iss", "aud", "type"], "strict_aud": True},
         )
         subject = claims["sub"]
         if (not isinstance(subject, str) or not subject.isascii()

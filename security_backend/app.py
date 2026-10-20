@@ -22,7 +22,7 @@ def create_app(service, overrides=None):
     if service not in ("users", "logs", "playbooks"):
         raise ValueError("Choose users, logs, or playbooks.")
     load_dotenv()
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder=None)
     app.config.update(
         SERVICE_NAME=service, DATABASE_URL=os.getenv("DATABASE_URL", ""),
         API_PREFIX=os.getenv("API_PREFIX", "/api/natalio-hassoun"),

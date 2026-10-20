@@ -1,0 +1,7 @@
+# Karim Hajj Ali: services 3, 7 and 8. Python 3.12 recommended.
+Flask==3.1.3
+flask-cors==4.0.1
+PyJWT==2.15.1
+psycopg[binary]==3.3.6
+requests==2.34.2
+python-dotenv==1.2.4
