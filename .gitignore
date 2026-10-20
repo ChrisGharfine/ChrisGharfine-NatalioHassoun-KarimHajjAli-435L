@@ -18,3 +18,4 @@ server.log
 # Local environment files -- never commit a filled-in copy
 .env
 .env.local
+.env.team
