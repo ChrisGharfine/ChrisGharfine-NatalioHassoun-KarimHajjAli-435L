@@ -1,0 +1,32 @@
+# Private configuration, credentials and local database files
+.env
+.env.*
+!.env.example
+!*.example.env
+*.db
+*.sqlite*
+# Python/build/test runtimes
+.venv*/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+docs/_build/
+docs/build/
+*.log
+test-results.local.*
+.runtime/
+.chris-runtime/
+node_modules/
+# Native Postman workspaces can contain populated credentials
+.postman/
+postman/collections/
+postman/environments/
+postman/globals/
+
+/test-results.*

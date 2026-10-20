@@ -1,0 +1,27 @@
+127.0.0.1 - - [18/Oct/2026 17:23:49] "POST /api/natalio-hassoun/internal/identity/verify HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 17:23:49] "GET /api/natalio-hassoun/logs/user/2 HTTP/1.1" 200 -
+  GET http://127.0.0.1:64169/api/natalio-hassoun/logs/user/2 [200 OK, 2.19kB, 12ms]
+  √  HTTP 200
+  √  JSON response
+
+┌─────────────────────────┬───────────────────┬──────────────────┐
+│                         │          executed │           failed │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              iterations │                 1 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│                requests │                73 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│            test-scripts │                73 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│      prerequest-scripts │                74 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              assertions │               146 │                0 │
+├─────────────────────────┴───────────────────┴──────────────────┤
+│ total run duration: 7.4s                                       │
+├────────────────────────────────────────────────────────────────┤
+│ total data received: 47.76kB (approx)                          │
+├────────────────────────────────────────────────────────────────┤
+│ average response time: 43ms [min: 3ms, max: 146ms, s.d.: 37ms] │
+└────────────────────────────────────────────────────────────────┘
+Student 1 migration applied (repeatable; existing records retained).
+Student 1 migration applied (repeatable; existing records retained).
